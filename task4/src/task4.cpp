@@ -658,7 +658,7 @@ struct operation{
 	std::string type;
 	std::string table;
 	std::vector<std::pair<std::string, std::string>> selectcondition;
-	std::vector<std::string> joincondition;
+	std::vector<std::pair<std::string, std::string>> joincondition;
 	std::vector<std::string> printcondition;
 	operation* left;
 	operation* right;
@@ -710,9 +710,18 @@ void compile(operation *head){
 
 
 		std::cout << "template<typename T, typename L, typename R> void index"+current->id+"(I& m, L tuple, int count){"<<std::endl;
-	void initindex(Ncustomer::customer::map_t& m, Ncustomer::customer::Row tuple, int count){
-	m[std::make_tuple(tuple.c_w_id,tuple.c_d_id,tuple.c_id)] = count;	
-}	
+	
+		std::cout << "m[std::make_tuple(";
+		int count = 0;
+		int size = current->joincondition.size();
+		for(std::pair<std::string,std::string> pair:current->joincondition){
+			std::cout <<"tuple." << pair.first
+			if(++count < size){
+				std::cout << " && ";
+			}
+		}
+		std::cout << ") = count" << std::endl;
+
 
 		std::cout << "template<typename I, typename V> V find"+current->id+"(I m){"<<std::endl;
 		

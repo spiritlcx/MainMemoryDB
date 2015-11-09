@@ -1,0 +1,35 @@
+t_id
+
+unordered_multimap
+
+efficient query plans
+lvm
+
+tablescan
+selection
+print
+innerjoin/ hashjoin
+
+tablescan.produce() / produce code for table scan
+	for
+parent.consume()
+
+selection.produce()
+	input.produce()
+selection.consume()
+	if(){
+		parent.consume()	
+	}
+print.produce()
+	input.produce()
+print.consume()
+cout<<
+hashjoin.produce()
+	init hashtable
+	left.produce()
+	right.produce()
+hashjoin.consume()
+	store in hashtable
+consume.right()
+	for t in HT lookup
+	parent.consume();
