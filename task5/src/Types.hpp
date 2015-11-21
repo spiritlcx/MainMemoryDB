@@ -65,6 +65,7 @@ inline Integer modulo(Integer x,int32_t y)
 }
 //---------------------------------------------------------------------------
 std::ostream& operator<<(std::ostream& out,const Integer& value);
+
 //---------------------------------------------------------------------------
 /// A variable length string
 template <unsigned maxLen> class Varchar

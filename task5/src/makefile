@@ -1,2 +1,2 @@
-task : Semantic.cpp Semantic.hpp QueryParser.cpp QueryParser.hpp CreateParser.cpp CreateParser.hpp Query.hpp
-	g++ -std=c++11 -Wall -O3 -g -o task Semantic.cpp QueryParser.cpp CreateParser.cpp -I.
+task : task5.cpp task5.hpp ./parser/Semantic.cpp ./parser/Semantic.hpp ./parser/QueryParser.cpp ./parser/QueryParser.hpp Types.cpp ./parser/CreateParser.cpp ./parser/CreateParser.hpp ./parser/Query.hpp Types.hpp
+	g++ -std=c++11 -Wall -O3 -g -o task task5.cpp Types.cpp ./parser/Semantic.cpp ./parser/QueryParser.cpp ./parser/CreateParser.cpp -I. -lrt -ldl
