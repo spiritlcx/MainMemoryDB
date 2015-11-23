@@ -447,13 +447,81 @@ struct orderkey{
 	Numeric<2, 0> o_ol_cnt;
 };
 
-//based class for tablescan, print, selection and join
+double query(Norder::order &order, Ncustomer::customer &customer, Norderline::orderline &orderline){
+	std::vector<Norder::order::Row> orders = order.getAll();
+	std::vector<Ncustomer::customer::Row> customers = customer.getAll();
+	std::vector<Norderline::orderline::Row> orderlines = orderline.getAll();
+
+	std::vector<orderkey> orderkeys;
+
+		typedef std::tuple<Integer,Integer,Integer> key_customer;
+		struct key_hash_customer : public std::unary_function<key_customer, std::size_t>{
+			std::size_t operator()(const key_customer& k) const{
+				return std::get<0>(k).value+std::get<1>(k).value+std::get<2>(k).value;
+			}
+		};
+		struct key_equal_customer : public std::binary_function<key_customer, key_customer, bool>{
+			bool operator()(const key_customer& v0, const key_customer& v1) const{
+				return (
+					std::get<0>(v0) == std::get<0>(v1)&&
+					std::get<1>(v0) == std::get<1>(v1)&&
+					std::get<2>(v0) == std::get<2>(v1)
+				);
+			}
+		};
+
+
+	typedef std::unordered_map<const key_customer , int,key_hash_customer, key_equal_customer> map_customer;
+
+
+
+	map_customer m_customer;
+	int count = 0;
+	for(Ncustomer::customer::Row c_ustomer : customers){
+		if(c_ustomer.c_last.value[0] != 'B')
+			continue;
+		m_customer[std::make_tuple(c_ustomer.c_w_id, c_ustomer.c_d_id, c_ustomer.c_id)] = count++;
+	}
+	for(Norder::order::Row o_rder : orders){
+		
+		auto itr = m_customer.find(std::make_tuple(o_rder.o_w_id, o_rder.o_d_id, o_rder.o_c_id));
+
+		if(itr != m_customer.end()){
+			orderkey key;
+			key.o_w_id = o_rder.o_w_id;
+			key.o_d_id = o_rder.o_d_id;
+			key.o_id = o_rder.o_id;
+			key.c_balance = customers[itr->second].c_balance;
+			key.o_ol_cnt = o_rder.o_ol_cnt;
+			orderkeys.push_back(key);
+		}
+		
+	}
+	typedef std::tuple<Integer,Integer,Integer> key_orderline;
+	
+	std::unordered_map<key_orderline, int, key_hash_customer,key_equal_customer> m_orderkey;
+	
+	count = 0;
+	for(orderkey key : orderkeys){
+		m_orderkey[std::make_tuple(key.o_id, key.o_d_id, key.o_w_id)]= count++;
+	}
+
+	double sum = 0;
+	for(Norderline::orderline::Row o_rderline : orderlines){
+		auto itr = m_orderkey.find(std::make_tuple(o_rderline.ol_o_id, o_rderline.ol_d_id,o_rderline.ol_w_id));
+		if(itr != m_orderkey.end()){
+			sum += (o_rderline.ol_quantity.value * o_rderline.ol_amount.value - orderkeys[itr->second].c_balance.value * orderkeys[itr->second].o_ol_cnt.value);
+		}
+	}
+	return sum;
+
+}
+
 template <typename T>
 class Input{
 public:
 	virtual std::vector<T> produce() = 0;
 };
-
 
 template <typename T>
 class TableScan : public Input<T>{
@@ -468,7 +536,6 @@ template<typename T> std::vector<T> TableScan<T>::produce(){
 	return table;
 }
 
-
 template<typename T>
 class Selection : public Input<T>{
 public:
@@ -480,12 +547,18 @@ private:
 	bool(*p)(T tuple);
 };
 
-
+template<typename T> bool _select(T tuple){
+	if(tuple.c_id == 322 && tuple.c_w_id == 1 &&tuple.c_d_id==1){
+		return true;
+	}else{
+		return false;
+	}
+}
 
 template<typename T> std::vector<T> Selection<T>::produce(){
 	std::vector<T> tuples = input->produce();
 	
-	std::vector<T> results = consume(tuples, p);
+	std::vector<T> results = consume(tuples, _select);
 	return results;
 }
 
@@ -640,8 +713,8 @@ void compile(operation *head){
 			std::cout << "\t"+attribute.first + " " + attribute.second << ";" << std::endl;
 		}
 		
-		std::cout << "\tbool checkmember(std::string member){" << std::endl;
-		std::cout << "\t\tif(";
+		std::cout << "bool checkmember(std::string member){" << std::endl;
+		std::cout << "\tif(";
 		int count = 0;
 		int size = current->attribute.size();
 		for(std::pair<std::string, std::string> attribute : current->attribute){
@@ -651,9 +724,9 @@ void compile(operation *head){
 			}
 		}
 		std::cout << ")" <<std::endl;
-		std::cout << "\t\t\treturn true;" << std::endl;
-		std::cout << "\t\telse" << std::endl;
-		std::cout << "\t\t\treturn false;" << std::endl;
+		std::cout << "\t\treturn true;" << std::endl;
+		std::cout << "\telse" << std::endl;
+		std::cout << "\t\treturn false;" << std::endl;
 		
 
 
@@ -909,9 +982,6 @@ int main(){
 	l0->printcondition.push_back("o_all_local");
 	l0->printcondition.push_back("ol_amount");
 
-
-// compile the mannually built algebra tree expression to C++ code, which is shown from line 745-826 and the code below
-
 //	compile(l1);
 
 
@@ -920,7 +990,8 @@ int main(){
 
 	Input<Norder::order::Row> *tableScanB = new TableScan<Norder::order::Row>(order.getAll());
 
-
+//	Hashjoin<hashjoinAT, std::multimap<std::tuple<Integer,Integer,Integer>, std::vector<int>>, Ncustomer::customer::Row, Norder::order::Row> *hashjoinA= new Hashjoin<hashjoinAT, std::multimap<std::tuple<Integer,Integer,Integer>,std::vector<int>>, Ncustomer::customer::Row, Norder::order::Row>(selectA,tableScanB, combineA);
+	
 	Hashjoin<hashjoinAT, std::multimap<std::tuple<Integer,Integer,Integer>, int>, Ncustomer::customer::Row, Norder::order::Row> *hashjoinA= new Hashjoin<hashjoinAT, std::multimap<std::tuple<Integer,Integer,Integer>,int>, Ncustomer::customer::Row, Norder::order::Row>(selectA,tableScanB, combineA,indexA,findA);
 					
 	Input<Norderline::orderline::Row> *tableScanC = new TableScan<Norderline::orderline::Row>(orderline.getAll());
@@ -932,6 +1003,64 @@ int main(){
 	Print<hashjoinBT> *printA = new Print<hashjoinBT>(hashjoinB, format);
 
 	printA->produce();
+
+
+
+//std::multimap<std::tuple<int,int>, std::vector<int>> m;
+
+
+
+
+
+
+
+//	Input<Ncustomer::customer::Row> *tableScanA = new TableScan<Ncustomer::customer::Row>(customer.getAll());
+
+//	Print<Ncustomer::customer::Row> *printA = new Print<Ncustomer::customer::Row>(tableScanA, format);
+
+//	printA->produce();
+	
+
+
+
+//	Input<Ncustomer::customer::Row> *tableScan = new TableScan<Ncustomer::customer::Row>(customer.getAll());
+//	std::vector<Ncustomer::customer::Row> k = tableScan->produce();
+
+//	Selection<Ncustomer::customer::Row> *selec = new Selection<Ncustomer::customer::Row>(tableScan);
+	
+
+//	Print<Ncustomer::customer::Row> *print = new Print<Ncustomer::customer::Row>(selec);
+//	print->produce();
+
+//	Input<Ncustomer::customer::Row> *leftScan = new TableScan<Ncustomer::customer::Row>(customer.getAll());
+	
+
+//	Input<Norder::order::Row> *rightScan = new TableScan<Norder::order::Row>(order.getAll());
+
+//	Hashjoin<Ncustomer::customer::Row, Ncustomer::customer::map_t, Ncustomer::customer::Row, Norder::order::Row> *hashjoin = new Hashjoin<Ncustomer::customer::Row, Ncustomer::customer::map_t, Ncustomer::customer::Row, Norder::order::Row>(leftScan, rightScan); 
+
+//	hashjoin->produce();
+
+
+	
+//	std::clock_t start;
+//	double duration;
+
+//	start = std::clock();
+
+//	double sum = 0;
+
+//	int querynumber = 0;
+//	for(unsigned i = 0; i < 10; i++){
+//		querynumber++;
+//		start=std::clock();
+//		sum = query(order,customer,orderline);
+//		duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+//		std::cout << "duration is " << duration << std::endl;
+//		std::cout << "sum is " << sum << std::endl;		
+//	}
+	
+	
 
 	return 0;
 }

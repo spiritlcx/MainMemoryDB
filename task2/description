@@ -1,0 +1,10 @@
+1. The parser supports creating any kind of index now. All the information about tables, attributes, primarykey and index will be recorded when parsing
+2. The generator is the function std::string toCpp() in Schema.cpp
+3. 1 million transactions take 5.33566 seconds
+   There are 240002 tuples in the order, 135002 tuples in neworder and 2327411 tuples in orderline table after 1 million transactions.
+
+To run transactions, use task2.cpp. To generate C++ code, run generator.cpp
+
+implementation:
+std::list is used to store tuples, std::unordered_map is used to make the index
+

@@ -1,0 +1,17 @@
+1. compile(operation*) function is the function which transforms a algebra tree to c++ code
+
+class tablescan, print, select and hashjoin and corresponding functions are written manully, only the necessary functions and types are
+generated from the algebra tree. 
+
+2. to run the program, a folder named "data" with orderline, order and customer files should be in the same directory
+3. the final result is
+
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+wLzEBrpKbbfeb01 PRIABLEOUGHT 1 0.00
+
