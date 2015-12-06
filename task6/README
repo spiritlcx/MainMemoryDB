@@ -1,0 +1,38 @@
+The comparison are based on the 7 provided test queries
+
+To run the program, a folder name "data" with tbl files should be included.
+
+Here are my findings:
+
+1. compare the parallel query having 1 thread with the old query
+
+To make the comparison less random, each query was run twice and the average time is calculated
+
+         new query     old query
+
+query 1: 0.096 ms  vs  0.072 ms
+query 2: 23.36 ms  vs  19.34 ms
+query 3: 1.165 ms  vs  1.175 ms
+query 4: 117.45 ms vs  149 ms
+query 5: 21.2 9ms  vs  12.58 ms
+query 6: 770.27 ms vs  556.75 ms
+query 7: 30136.7 ms  vs  5221.365 ms
+
+We can see that most queries in the parallel query having 1 thread is slower, which is normal because creating a thread has overhead, and it can't take advantage of parallel computation when there is only 1 thread
+
+
+2. compare the parallel query having 1 threads with multiple threads
+	 1 thread      2 thread    4 thread   8 thread
+query 1: 0.096 ms  vs  	0.1 ms      0.346 ms   0.56 ms      
+query 2: 23.36 ms  vs   11.37 ms    7.35 ms    12.75 ms
+query 3: 1.165 ms  vs  	1.19 ms	    2 ms       3.58 ms
+query 4: 117.45 ms vs   81.5 ms     50.6 ms    47.48 ms
+query 5: 21.2 9ms  vs   8.6 ms      9.53 ms    9.41 ms
+query 6: 770.27 ms vs   426.13 ms   236.75 ms  245.67 ms
+query 7: 30136.7 ms  vs 15840.6 ms  10976.6 ms 11269.4 ms
+
+There are two cores in cpu, but because of Hyper-threading, 2 logical processors for each core, so 4 threads can run Simultaneously
+So, when the number of thread increases from 1 to 4, the overall performance is better, but when the number of threads exceed 4, performance won't be better.
+
+The performance increase is different for different queries, for queries whose inner loop has a lot of work such as query 4, the performance increases much. But for the query whose inner loop has a little work such as query 1, the performance can decrease. That's because the overhead of creating threads is more than the executation of the thread.
+

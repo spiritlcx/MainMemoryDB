@@ -69,7 +69,7 @@ void Semantic::analysis(std::unordered_map<std::string, Schema::Relation> &relat
 
 	std::ofstream out;
 	out.open("tree_expression.cpp");
-	out << "#include \"task5.hpp\"" << std::endl;
+	out << "#include \"task6.hpp\"" << std::endl;
 	out << "extern \"C\" void print(Customer *customer, Order *order, Orderline *orderline, Warehouse *warehouse, District *district, Item *item){" << std::endl;
 	out << "initialize();" << std::endl;
 	int scanNumber = 0;
