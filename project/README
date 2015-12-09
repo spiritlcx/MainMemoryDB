@@ -1,0 +1,1 @@
+Vectorized execution model which is q query engine making full use of modern hardware such as CPU cache, superscala CPU will be implemente. Comparison will be made with the previous produce/consume model.
