@@ -47,7 +47,9 @@ struct Table{
 	std::vector<Attribute> attributes;
 	virtual std::vector<Attribute> getAttributes(){
 		return attributes;
-	}	
+	}
+
+	virtual int getColumn(Integer *result, std::string column, int size, int offset) = 0;
 };
 
 struct Customer : Table{
@@ -75,16 +77,46 @@ struct Customer : Table{
 		Numeric<4,0> c_delivery_cnt;
 		Varchar<500> c_data;
 	};
-	Row operator [](const int& i) const {return customers[i];}
-	unsigned size(){return customers.size();}
-	std::vector<Row> customers;
+	unsigned size(){return c_id.size();}
+	std::vector<Integer> c_id;
+	std::vector<Integer> c_d_id;
+	std::vector<Integer> c_w_id;
+	std::vector<Varchar<16>> c_first;
+	std::vector<Char<2>> c_middle;
+	std::vector<Varchar<16>> c_last;
+	std::vector<Varchar<20>> c_street_1;
+	std::vector<Varchar<20>> c_street_2;
+	std::vector<Varchar<20>> c_city;
+	std::vector<Char<2>> c_state;
+	std::vector<Char<9>> c_zip;
+	std::vector<Char<16>> c_phone;
+	std::vector<Timestamp> c_since;
+	std::vector<Char<2>> c_credit;
+	std::vector<Numeric<12,2>> c_credit_lim;
+	std::vector<Numeric<4,4>> c_discount;
+	std::vector<Numeric<12,2>> c_balance;
+	std::vector<Numeric<12,2>> c_ytd_paymenr;
+	std::vector<Numeric<4,0>> c_payment_cnt;
+	std::vector<Numeric<4,0>> c_delivery_cnt;
+	std::vector<Varchar<500>> c_data;
+	
 	std::vector<unsigned> primaryKey;
-
-	std::vector<Row> getAll(){
-		return customers;
-	}
-	Row get(int index){
-		return customers[index];
+	virtual int getColumn(Integer *result, std::string column, int size, int offset){
+		int i = 0;
+		if(column == "c_id"){
+			for(; i < size; i++){
+				result[i] = c_id[offset+size];
+			}
+		}else if(column == "c_d_id"){
+			for(; i < size; i++){
+				result[i] = c_d_id[offset+size];
+			}
+		}else if(column == "c_w_id"){
+			for(; i < size; i++){
+				result[i] = c_w_id[offset+size];
+			}
+		} 
+		return i;
 	}
 
 	void init(){
@@ -120,30 +152,28 @@ struct Customer : Table{
 		
 		while(!f.eof() && f >> line){
 			std::vector<std::string> data = split(line, '|');
-			Row row;
-			row.c_id =Integer::castString(data[0].c_str(), data[0].length());
-			row.c_d_id =Integer::castString(data[1].c_str(), data[1].length());
-			row.c_w_id =Integer::castString(data[2].c_str(), data[2].length());
-			row.c_first =Varchar<16>::castString(data[3].c_str(), data[3].length());
-			row.c_middle =Char<2>::castString(data[4].c_str(), data[4].length());
-			row.c_last =Varchar<16>::castString(data[5].c_str(), data[5].length());
-			row.c_street_1 =Varchar<20>::castString(data[6].c_str(), data[6].length());
-			row.c_street_2 =Varchar<20>::castString(data[7].c_str(), data[7].length());
-			row.c_city =Varchar<20>::castString(data[8].c_str(), data[8].length());
-			row.c_state =Char<2>::castString(data[9].c_str(), data[9].length());
-			row.c_zip =Char<9>::castString(data[10].c_str(), data[10].length());
-			row.c_phone =Char<16>::castString(data[11].c_str(), data[11].length());
+			
+			c_id.push_back(Integer::castString(data[0].c_str(), data[0].length()));
+			c_d_id.push_back(Integer::castString(data[1].c_str(), data[1].length()));
+			c_w_id.push_back(Integer::castString(data[2].c_str(), data[2].length()));
+			c_first.push_back(Varchar<16>::castString(data[3].c_str(), data[3].length()));
+			c_middle.push_back(Char<2>::castString(data[4].c_str(), data[4].length()));
+			c_last.push_back(Varchar<16>::castString(data[5].c_str(), data[5].length()));
+			c_street_1.push_back(Varchar<20>::castString(data[6].c_str(), data[6].length()));
+			c_street_2.push_back(Varchar<20>::castString(data[7].c_str(), data[7].length()));
+			c_city.push_back(Varchar<20>::castString(data[8].c_str(), data[8].length()));
+			c_state.push_back(Char<2>::castString(data[9].c_str(), data[9].length()));
+			c_zip.push_back(Char<9>::castString(data[10].c_str(), data[10].length()));
+			c_phone.push_back(Char<16>::castString(data[11].c_str(), data[11].length()));
 //			row.c_since =Timestamp::castString(data[12].c_str(), data[12].length());
-			row.c_credit =Char<2>::castString(data[13].c_str(), data[13].length());
-			row.c_credit_lim =Numeric<12,2>::castString(data[14].c_str(), data[14].length());
-			row.c_discount =Numeric<4,4>::castString(data[15].c_str(), data[15].length());
-			row.c_balance =Numeric<12,2>::castString(data[16].c_str(), data[16].length());
-			row.c_ytd_paymenr =Numeric<12,2>::castString(data[17].c_str(), data[17].length());
-			row.c_payment_cnt =Numeric<4,0>::castString(data[18].c_str(), data[18].length());
-			row.c_delivery_cnt =Numeric<4,0>::castString(data[19].c_str(), data[19].length());
-			row.c_data =Varchar<500>::castString(data[20].c_str(), data[20].length());
-			customers.push_back(row);
-
+			c_credit.push_back(Char<2>::castString(data[13].c_str(), data[13].length()));
+			c_credit_lim.push_back(Numeric<12,2>::castString(data[14].c_str(), data[14].length()));
+			c_discount.push_back(Numeric<4,4>::castString(data[15].c_str(), data[15].length()));
+			c_balance.push_back(Numeric<12,2>::castString(data[16].c_str(), data[16].length()));
+			c_ytd_paymenr.push_back(Numeric<12,2>::castString(data[17].c_str(), data[17].length()));
+			c_payment_cnt.push_back(Numeric<4,0>::castString(data[18].c_str(), data[18].length()));
+			c_delivery_cnt.push_back(Numeric<4,0>::castString(data[19].c_str(), data[19].length()));
+			c_data.push_back(Varchar<500>::castString(data[20].c_str(), data[20].length()));
 		}
 	}
 
