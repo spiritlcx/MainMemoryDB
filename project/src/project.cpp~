@@ -1,5 +1,5 @@
 #include "project.hpp"
-#include "Operation.hpp"
+#include "tbb/tbb.h"
 #include <ctime>
 #include <chrono>
 #include <ratio>
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
 	
 	Semantic semantic(schema);
 
-	ScanOperation scanner;
+	Scan scanner;
 
 	std::vector<std::string> columns;
 	columns.push_back("c_id");
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]){
 
 	while(!scanner.end){
 		Dataflow dataflow = scanner.scan(columns);
-		SelectOperation::select(dataflow, expression);
+		select(dataflow, expression);
 	}
 
 			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();

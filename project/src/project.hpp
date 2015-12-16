@@ -49,7 +49,7 @@ struct Table{
 		return attributes;
 	}
 
-	virtual int getColumn(Integer *result, std::string column, int size, int offset) = 0;
+	virtual int getColumn(Integer *&result, std::string column, int size, int offset) = 0;
 };
 
 struct Customer : Table{
@@ -101,22 +101,20 @@ struct Customer : Table{
 	std::vector<Varchar<500>> c_data;
 	
 	std::vector<unsigned> primaryKey;
-	virtual int getColumn(Integer *result, std::string column, int size, int offset){
-		int i = 0;
+	virtual int getColumn(Integer* &result, std::string column, int size, int offset){
+		int remain = c_id.size() - offset + 1;
 		if(column == "c_id"){
-			for(; i < size; i++){
-				result[i] = c_id[offset+size];
-			}
+			result = &c_id[offset];
 		}else if(column == "c_d_id"){
-			for(; i < size; i++){
-				result[i] = c_d_id[offset+size];
-			}
+			result = &c_d_id[offset];
 		}else if(column == "c_w_id"){
-			for(; i < size; i++){
-				result[i] = c_w_id[offset+size];
-			}
-		} 
-		return i;
+			result = &c_w_id[offset];
+		}
+
+		if(size < remain)
+			return size;
+		else
+			return remain;
 	}
 
 	void init(){
