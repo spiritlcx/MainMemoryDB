@@ -49,7 +49,8 @@ struct Table{
 		return attributes;
 	}
 
-	virtual int getColumn(Integer *&result, std::string column, int size, int offset) = 0;
+	virtual int getColumn(void **result, Schema::Relation::Attribute &attribute, int size, int offset) = 0;
+
 };
 
 struct Customer : Table{
@@ -101,16 +102,18 @@ struct Customer : Table{
 	std::vector<Varchar<500>> c_data;
 	
 	std::vector<unsigned> primaryKey;
-	virtual int getColumn(Integer* &result, std::string column, int size, int offset){
+	virtual int getColumn(void** result, Schema::Relation::Attribute &attribute, int size, int offset){
 		int remain = c_id.size() - offset + 1;
-		if(column == "c_id"){
-			result = &c_id[offset];
-		}else if(column == "c_d_id"){
-			result = &c_d_id[offset];
-		}else if(column == "c_w_id"){
-			result = &c_w_id[offset];
+		if(attribute.name == "c_id"){
+			*result = &c_id[offset];
+		}else if(attribute.name == "c_d_id"){
+			*result = &c_d_id[offset];
+		}else if(attribute.name == "c_w_id"){
+			*result = &c_w_id[offset];
+		}else if(attribute.name == "c_balance"){
+			*result = &c_balance[offset];
 		}
-
+		
 		if(size < remain)
 			return size;
 		else
@@ -190,19 +193,36 @@ struct Order : Table{
 		Numeric<1,0> o_all_local;
 	};
 
-	Row operator [](const int& i) const {return orders[i];}
-	unsigned size(){return orders.size();}
-
-	std::vector<Row> orders;
 	std::vector<unsigned> primaryKey;
 
-	std::vector<Row> getAll(){
-		return orders;
-	}
+	std::vector<Integer> o_id;
+	std::vector<Integer> o_d_id;
+	std::vector<Integer> o_w_id;
+	std::vector<Integer> o_c_id;
+	std::vector<Timestamp> o_entry_d;
+	std::vector<Integer> o_carrier_id;
+	std::vector<Numeric<2,0>> o_ol_cnt;
+	std::vector<Numeric<1,0>> o_all_local;
 
-	Row get(int index){
-		return orders[index];
-	}
+	virtual int getColumn(void** result, Schema::Relation::Attribute &attribute, int size, int offset){
+		int remain = o_id.size() - offset + 1;
+		if(attribute.name == "o_id"){
+			*result = &o_id[offset];
+		}else if(attribute.name == "o_d_id"){
+			*result = &o_d_id[offset];
+		}else if(attribute.name == "o_w_id"){
+			*result = &o_w_id[offset];
+		}else if(attribute.name == "o_c_id"){
+			*result = &o_c_id[offset];
+		}
+		
+		if(size < remain)
+			return size;
+		else
+			return remain;
+	}	
+
+
 	void init(){
 		primaryKey.push_back(2);
 		primaryKey.push_back(1);
@@ -224,15 +244,15 @@ struct Order : Table{
 		while(!f.eof() && f >> line){
 			std::vector<std::string> data = split(line, '|');
 			Row row;
-			row.o_id =Integer::castString(data[0].c_str(), data[0].length());
-			row.o_d_id =Integer::castString(data[1].c_str(), data[1].length());
-			row.o_w_id =Integer::castString(data[2].c_str(), data[2].length());
-			row.o_c_id =Integer::castString(data[3].c_str(), data[3].length());
+			o_id.push_back(Integer::castString(data[0].c_str(), data[0].length()));
+			o_d_id.push_back(Integer::castString(data[1].c_str(), data[1].length()));
+			o_w_id.push_back(Integer::castString(data[2].c_str(), data[2].length()));
+			o_c_id.push_back(Integer::castString(data[3].c_str(), data[3].length()));
 //			row.o_entry_d =Timestamp::castString(data[4].c_str(), data[4].length());
-			row.o_carrier_id =Integer::castString(data[5].c_str(), data[5].length());
-			row.o_ol_cnt =Numeric<2,0>::castString(data[6].c_str(), data[6].length());
-			row.o_all_local =Numeric<1,0>::castString(data[7].c_str(), data[7].length());
-			orders.push_back(row);
+			o_carrier_id.push_back(Integer::castString(data[5].c_str(), data[5].length()));
+			o_ol_cnt.push_back(Numeric<2,0>::castString(data[6].c_str(), data[6].length()));
+			o_all_local.push_back(Numeric<1,0>::castString(data[7].c_str(), data[7].length()));
+
 
 		}
 	}

@@ -34,8 +34,9 @@ struct Dataflow{
 		other.size = 0;
 	}
 
-	std::unordered_map<std::string, Integer*> integerdata;
-	std::unordered_map<std::string, Timestamp*> timestampdata;
+	std::unordered_map<std::string, void*> integerdata;
+	std::vector<std::string> dataorder;
+//	std::unordered_map<std::string, Timestamp*> timestampdata;
 //	std::unordered_map<std::string, Numeric<,>*> integerdata;
 //	std::unordered_map<std::string, Char<>*> integerdata;
 //	std::unordered_map<std::string, VarChar<>*> integerdata;
@@ -43,8 +44,8 @@ struct Dataflow{
 	int *select;
 };
 
-int scan_Integer(Table *table, Integer* &result, std::string column, int size, int offset){
-	return table->getColumn(result, column, size, offset);
+int scan_Integer(Table *table, void** result, Schema::Relation::Attribute &attribute, int size, int offset){
+	return table->getColumn(result, attribute, size, offset);
 }
 
 /*
@@ -72,15 +73,29 @@ public:
 	Dataflow scan(std::vector<std::string> columns){
 		struct Dataflow dataflow;
 		int size = 0;
+
+		for(int i = 0; i < N; i++){
+			dataflow.select[i]=i;
+		}
+
 		for(std::string column : columns){
 			Schema::Relation::Attribute &attribute = attributes[column];
 			switch(attribute.type){
 			case Types::Tag::Integer:{
 				Integer *result = nullptr;
-				size = scan_Integer(columnTable[column], result, column, N, offset);
-				for(int i = 0; i < size; i++){
-					dataflow.select[i]=i;
-				}
+				size = scan_Integer(columnTable[column], (void **)&result, attribute, N, offset);
+				dataflow.dataorder.push_back(column);
+				dataflow.integerdata.insert({column,result});
+				break;
+			}
+			case Types::Tag::Numeric:{
+
+//				constexpr unsigned len1 = attribute.len1;
+//				constexpr unsigned len2 = attribute.len2;
+//				std::cout << len1 << " "<<len2<<std::endl;
+				//Numeric<len1, len2> *result = nullptr;
+				Numeric<45,19> *result;
+				size = scan_Integer(columnTable[column],(void **)&result, attribute, N, offset);
 				dataflow.integerdata.insert({column,result});
 				break;
 			}
@@ -103,10 +118,10 @@ public:
 //size = 5
 //output = {1,2,5,9,12}
 
-int select_equal_Integer(int *output, Integer *input, int value, int size){
+int select_equal_Integer(int *output, void *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(input[output[i]] == value){
+		if(*((Integer*)input+output[i]) == value){
 			output[count++] = output[i];
 		}
 
@@ -116,10 +131,10 @@ int select_equal_Integer(int *output, Integer *input, int value, int size){
 	return count;
 }
 
-int select_bigger_Integer(int *output, Integer *input, int value, int size){
+int select_bigger_Integer(int *output, void *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(input[output[i]] > value){
+		if(*((Integer*)input+output[i]) > value){
 			output[count] = output[i];
 			count++;
 		}
@@ -129,10 +144,10 @@ int select_bigger_Integer(int *output, Integer *input, int value, int size){
 	return count;
 }
 
-int select_smaller_Integer(int *output, Integer *input, int value, int size){
+int select_smaller_Integer(int *output, void *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(input[output[i]] < value){
+		if(*((Integer*)input+output[i]) < value){
 			output[count] = output[i];
 			count++;
 		}
@@ -194,12 +209,97 @@ static Dataflow select(Dataflow &dataflow, std::vector<std::tuple<std::string, s
 	}
 
 	for(int i = 0; i < size; i++){
-		std::cout << dataflow.integerdata["c_id"][dataflow.select[i]]<< "  " << dataflow.integerdata["c_d_id"][dataflow.select[i]] <<std::endl;
+		for(unsigned j = 0; j < dataflow.dataorder.size(); j++)
+			std::cout << *((Integer*)dataflow.integerdata[dataflow.dataorder[i]]+dataflow.select[i]) << " ";
+		std::cout << std::endl;
+//<< "  " << *((Integer*)dataflow.integerdata["c_d_id"]+dataflow.select[i])<< std::endl;//"  " << *((Numeric<45,19>*)dataflow.integerdata["c_balance"]+dataflow.select[i]) <<std::endl;
 	}
 	return dataflow;
 //	return std::move(dataflow);
 }
 };
+
+void hash(int *hashValue, void *key, int size){
+	for(int i = 0; i < size; i++){
+		hashValue[i] = (hashValue[i] + *((int*)key+i))%size;
+	}
+}
+
+struct HashTable{
+	int first[N];
+	int next[N];
+	void *values[10];
+};
+
+void hashTableInsert(int *groupId, HashTable &hashTable, int *hashValue, int size){
+	for(int i = 0; i < size; i++){
+		groupId[i] = i+1;
+		hashTable.next[groupId[i]] = hashTable.first[hashValue[i]];
+		hashTable.first[hashValue[i]] = groupId[i];
+	}
+}
+
+void spread(void *value, int *groupId, void *inputvalue, int size){
+
+	for(int i = 0; i < size; i++){
+		*((int*)value+groupId[i]) = *((int*)inputvalue+i);
+	}
+}
+
+void lookupInitial(int *pgroupId, HashTable &hashTable, int *hashValue, int size){
+	int count = 0;
+	for(int i = 0; i < size; i++){
+		pgroupId[i] = hashTable.first[hashValue[i]];
+		if( 0== pgroupId[i])
+			count++;
+	}
+		std::cout << count<< std::endl;
+}
+
+class JoinOperation{
+public:
+	static Dataflow hashjoin(Dataflow &dataflow, std::vector<std::string> probe, std::vector<std::tuple<std::string, std::string>> expression){
+		HashTable hashTable;
+		int *hashValue = new int[dataflow.size];
+		memset(hashValue, 0, dataflow.size*sizeof(int));
+		
+		for(std::tuple<std::string, std::string> exp: expression){
+			hash(hashValue, dataflow.integerdata[std::get<0>(exp)], dataflow.size);
+		}
+
+		int groupId[dataflow.size];
+		hashTableInsert(groupId, hashTable, hashValue, dataflow.size);
+
+		int i = 0;
+		for(std::string column : dataflow.dataorder){
+			hashTable.values[i] = new int[dataflow.size];	
+			spread(hashTable.values[i], groupId, dataflow.integerdata[column], dataflow.size);
+			i++;
+		}
+		
+//		for(int j = 0; j < dataflow.size; j++){
+//			for(unsigned k = 0; k < dataflow.dataorder.size(); k++){
+//				std::cout << *((int*)hashTable.values[k]+j) << " ";
+//			}
+//			std::cout << std::endl;
+//		}
+		
+		ScanOperation scanner;
+		
+		Dataflow prob = scanner.scan(probe);
+		int *probeValue = new int[prob.size];
+		for(std::tuple<std::string, std::string> exp: expression){
+			hash(probeValue, dataflow.integerdata[std::get<1>(exp)], dataflow.size);
+		}
+
+		int *pgroupId = new int[prob.size];
+		memset(pgroupId, 0, prob.size*sizeof(int));
+		lookupInitial(pgroupId,hashTable,probeValue, prob.size);
+		
+		return dataflow;
+	}
+};
+
 
 /*
 class ProjectOperation{

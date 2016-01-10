@@ -56,19 +56,23 @@ int main(int argc, char *argv[]){
 	std::vector<std::string> columns;
 	columns.push_back("c_id");
 	columns.push_back("c_d_id");
-
+	columns.push_back("c_w_id");
 	
 	std::chrono::high_resolution_clock::time_point querystart = std::chrono::high_resolution_clock::now();
 
 
-	std::vector<std::tuple<std::string,std::string,std::string>> expression;
-	expression.push_back(std::make_tuple("=", "c_id", "5"));
-	expression.push_back(std::make_tuple("=", "c_d_id", "5"));
+	std::vector<std::tuple<std::string,std::string,std::string>> selectexpression;
+	selectexpression.push_back(std::make_tuple("=", "c_id", "5"));
+	selectexpression.push_back(std::make_tuple("=", "c_d_id", "5"));
 
+	std::vector<std::tuple<std::string, std::string>> joinexpression;
+	joinexpression.push_back(std::make_tuple("c_id","c_id"));
+	joinexpression.push_back(std::make_tuple("c_d_id","c_d_id"));
 
 	while(!scanner.end){
 		Dataflow dataflow = scanner.scan(columns);
-		SelectOperation::select(dataflow, expression);
+		SelectOperation::select(dataflow, selectexpression);
+		JoinOperation::hashjoin(dataflow, columns, joinexpression);
 	}
 
 			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
