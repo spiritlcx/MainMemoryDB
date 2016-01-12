@@ -227,11 +227,13 @@ void hash(int *hashValue, void *key, int size){
 
 struct HashTable{
 	int first[N];
-	int next[N];
+	int next[N+1];
 	void *values[10];
+	std::vector<std::string> colorder;
 };
 
 void hashTableInsert(int *groupId, HashTable &hashTable, int *hashValue, int size){
+	
 	for(int i = 0; i < size; i++){
 		groupId[i] = i+1;
 		hashTable.next[groupId[i]] = hashTable.first[hashValue[i]];
@@ -246,20 +248,51 @@ void spread(void *value, int *groupId, void *inputvalue, int size){
 	}
 }
 
-void lookupInitial(int *pgroupId, HashTable &hashTable, int *hashValue, int size){
-	int count = 0;
+void lookupInitial(int *pgroupId, int *first, int *hashValue, int size){
 	for(int i = 0; i < size; i++){
-		pgroupId[i] = hashTable.first[hashValue[i]];
-		if( 0== pgroupId[i])
-			count++;
+		pgroupId[i] = first[hashValue[i]];
 	}
-		std::cout << count<< std::endl;
+}
+
+void check(int *differ, int *toCheck, int *groupId, int *value, int *probekey, int m){
+	for(int i = 0; i < m; i++){
+		int index = groupId[toCheck[i]];
+		if(probekey[i] != value[index] && index != 0){
+			differ[toCheck[i]] = 1;
+		}
+	}
+}
+
+int slectMisses(int *toCheck, int *differ, int m){
+	int count = 0;
+	for(int i = 0; i < m; i++){
+		if(differ[toCheck[i]] == 1){
+			toCheck[count] = toCheck[i];
+			count++;
+		}
+	}
+	return count;
+}
+
+void findNext(int *toCheck, int *next, int *groupId, int m){
+	for(int i = 0; i < m; i++){
+		groupId[toCheck[i]] = next[groupId[toCheck[i]]];
+	}
+}
+
+void gather(int *result, int *groupId, int *probtable, int size){
+	for(int i = 0; i < size; i++){
+		result[groupId[i]] = probtable[i];
+	}
 }
 
 class JoinOperation{
 public:
-	static Dataflow hashjoin(Dataflow &dataflow, std::vector<std::string> probe, std::vector<std::tuple<std::string, std::string>> expression){
+	static Dataflow hashjoin(Dataflow &dataflow, std::vector<std::string> &probe, std::vector<std::tuple<std::string, std::string>> expression){
 		HashTable hashTable;
+		memset(hashTable.first, 0, N*sizeof(int));
+		memset(hashTable.next, 0, (N+1)*sizeof(int));
+
 		int *hashValue = new int[dataflow.size];
 		memset(hashValue, 0, dataflow.size*sizeof(int));
 		
@@ -270,33 +303,106 @@ public:
 		int groupId[dataflow.size];
 		hashTableInsert(groupId, hashTable, hashValue, dataflow.size);
 
-		int i = 0;
+		delete [] hashValue;
+
+		int M = 0;
+		for(std::tuple<std::string, std::string> exp: expression){
+			hashTable.values[M] = new int[dataflow.size+1];	
+			hashTable.colorder.push_back(std::get<0>(exp));
+
+			memset(hashTable.values[M], 0, dataflow.size*sizeof(int));
+			spread(hashTable.values[M], groupId, dataflow.integerdata[std::get<0>(exp)], dataflow.size);
+			M++;
+		}
+
 		for(std::string column : dataflow.dataorder){
-			hashTable.values[i] = new int[dataflow.size];	
-			spread(hashTable.values[i], groupId, dataflow.integerdata[column], dataflow.size);
-			i++;
+			hashTable.values[M] = new int[dataflow.size+1];
+			if(std::find(hashTable.colorder.begin(), hashTable.colorder.end(),column) != hashTable.colorder.end())
+				continue;
+			hashTable.colorder.push_back(column);
+
+			memset(hashTable.values[M], 0, dataflow.size*sizeof(int));
+			spread(hashTable.values[M], groupId, dataflow.integerdata[column], dataflow.size);
+			M++;
+
 		}
 		
-//		for(int j = 0; j < dataflow.size; j++){
-//			for(unsigned k = 0; k < dataflow.dataorder.size(); k++){
-//				std::cout << *((int*)hashTable.values[k]+j) << " ";
-//			}
-//			std::cout << std::endl;
-//		}
 		
 		ScanOperation scanner;
 		
 		Dataflow prob = scanner.scan(probe);
-		int *probeValue = new int[prob.size];
-		for(std::tuple<std::string, std::string> exp: expression){
-			hash(probeValue, dataflow.integerdata[std::get<1>(exp)], dataflow.size);
+		int *probehashValue = new int[prob.size];
+		memset(probehashValue, 0, prob.size*sizeof(int));
+
+		for(std::tuple<std::string, std::string> exp : expression){
+			hash(probehashValue, prob.integerdata[std::get<1>(exp)], dataflow.size);
 		}
 
 		int *pgroupId = new int[prob.size];
 		memset(pgroupId, 0, prob.size*sizeof(int));
-		lookupInitial(pgroupId,hashTable,probeValue, prob.size);
+		lookupInitial(pgroupId, hashTable.first, probehashValue, prob.size);
 		
-		return dataflow;
+		delete [] probehashValue;  
+
+		int m = prob.size;
+		int *toCheck = new int[prob.size];
+		for(int j = 0; j < prob.size; j++)
+			toCheck[j] = j;
+
+		while(m > 0){
+			int *differ = new int[prob.size];
+			memset(differ, 0, prob.size*sizeof(int));
+
+			int i = 0;
+			for(std::tuple<std::string, std::string> exp: expression){
+				check(differ, toCheck, pgroupId, (int*)hashTable.values[i], (int*)prob.integerdata[std::get<1>(exp)], m);
+				i++;
+			}
+			m = slectMisses(toCheck, differ, m);
+			findNext(toCheck, hashTable.next, pgroupId, m);
+			delete [] differ;
+		}
+
+
+		
+		for(unsigned i = 0; i < prob.dataorder.size(); i++){
+			std::string column = prob.dataorder[i];
+			hashTable.colorder.push_back(column);
+			int *probtable = (int *)prob.integerdata[column];
+			
+			hashTable.values[M] = new int[dataflow.size+1];
+			memset(hashTable.values[M],0,(dataflow.size+1)*sizeof(int));	
+
+			gather((int*)hashTable.values[M], pgroupId, probtable, prob.size);
+			M++;
+		}
+
+
+//		int colnum = dataflow.integerdata.size() + prob.integerdata.size();
+		
+		Dataflow result;
+		int count = 0;
+		for(int i = 0; i < prob.size; i++){
+			if(pgroupId[i] != 0)
+				count++;
+		}		
+
+		delete [] toCheck;
+		if(count!=0){
+		for(int i = 0; i < M; i++){
+			int *m = (int*)hashTable.values[i];
+			std::cout << hashTable.colorder[i] << ":";
+			for(int j = 0; j < prob.size; j++){
+				if(pgroupId[j] != 0)
+					std::cout << m[pgroupId[j]] << " ";
+			}
+			std::cout << std::endl;
+		}
+
+		std::cout << "end" <<std::endl;
+		}
+		delete [] pgroupId;
+		return prob;
 	}
 };
 

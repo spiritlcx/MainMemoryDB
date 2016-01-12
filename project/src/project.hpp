@@ -182,17 +182,6 @@ struct Customer : Table{
 
 struct Order : Table{
 	Order() {name = "order";}
-	struct Row{
-		Integer o_id;
-		Integer o_d_id;
-		Integer o_w_id;
-		Integer o_c_id;
-		Timestamp o_entry_d;
-		Integer o_carrier_id;
-		Numeric<2,0> o_ol_cnt;
-		Numeric<1,0> o_all_local;
-	};
-
 	std::vector<unsigned> primaryKey;
 
 	std::vector<Integer> o_id;
@@ -243,7 +232,6 @@ struct Order : Table{
 
 		while(!f.eof() && f >> line){
 			std::vector<std::string> data = split(line, '|');
-			Row row;
 			o_id.push_back(Integer::castString(data[0].c_str(), data[0].length()));
 			o_d_id.push_back(Integer::castString(data[1].c_str(), data[1].length()));
 			o_w_id.push_back(Integer::castString(data[2].c_str(), data[2].length()));

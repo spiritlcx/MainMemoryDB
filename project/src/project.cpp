@@ -10,7 +10,12 @@ int main(int argc, char *argv[]){
 
 	Customer *customer = new Customer();
 	customer->init();
+	
+	Order *order = new Order();
+	order->init();
+
 	relationTable.insert({"customer",customer});
+	relationTable.insert({"order",order});
 //	std::cout << scan_Integer(customer, "c_id", 1024, 0) << std::endl;
 /*
 	Order *order = new Order();
@@ -66,13 +71,19 @@ int main(int argc, char *argv[]){
 	selectexpression.push_back(std::make_tuple("=", "c_d_id", "5"));
 
 	std::vector<std::tuple<std::string, std::string>> joinexpression;
-	joinexpression.push_back(std::make_tuple("c_id","c_id"));
-	joinexpression.push_back(std::make_tuple("c_d_id","c_d_id"));
+	joinexpression.push_back(std::make_tuple("c_id","o_c_id"));
+	joinexpression.push_back(std::make_tuple("c_d_id","o_d_id"));
+
+	    std::vector<std::string> probe;
+		probe.push_back("o_id");
+		probe.push_back("o_d_id");
+		probe.push_back("o_w_id");
+		probe.push_back("o_c_id");
 
 	while(!scanner.end){
 		Dataflow dataflow = scanner.scan(columns);
 		SelectOperation::select(dataflow, selectexpression);
-		JoinOperation::hashjoin(dataflow, columns, joinexpression);
+		JoinOperation::hashjoin(dataflow, probe, joinexpression);
 	}
 
 			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
