@@ -79,12 +79,18 @@ int main(int argc, char *argv[]){
 		probe.push_back("o_d_id");
 		probe.push_back("o_w_id");
 		probe.push_back("o_c_id");
-
+	int sum = 0;
 	while(!scanner.end){
 		Dataflow dataflow = scanner.scan(columns);
 		SelectOperation::select(dataflow, selectexpression);
-		JoinOperation::hashjoin(dataflow, probe, joinexpression);
+		JoinOperation join;
+		while(!join.end){
+			Dataflow result= join.hashjoin(dataflow, probe, joinexpression);
+//			std::cout << result.size << std::endl;
+			sum+=result.size;
+		}
 	}
+	std::cout << sum<<std::endl;
 
 			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
 	

@@ -203,7 +203,7 @@ struct Order : Table{
 			*result = &o_w_id[offset];
 		}else if(attribute.name == "o_c_id"){
 			*result = &o_c_id[offset];
-		}
+		}		
 		
 		if(size < remain)
 			return size;
