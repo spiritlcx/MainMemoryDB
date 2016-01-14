@@ -81,12 +81,12 @@ int main(int argc, char *argv[]){
 		probe.push_back("o_c_id");
 	int sum = 0;
 	while(!scanner.end){
+
 		Dataflow dataflow = scanner.scan(columns);
-		SelectOperation::select(dataflow, selectexpression);
+//		SelectOperation::select(dataflow, selectexpression);
 		JoinOperation join;
 		while(!join.end){
 			Dataflow result= join.hashjoin(dataflow, probe, joinexpression);
-//			std::cout << result.size << std::endl;
 			sum+=result.size;
 		}
 	}

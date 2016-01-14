@@ -103,7 +103,7 @@ struct Customer : Table{
 	
 	std::vector<unsigned> primaryKey;
 	virtual int getColumn(void** result, Schema::Relation::Attribute &attribute, int size, int offset){
-		int remain = c_id.size() - offset + 1;
+		int remain = c_id.size() - offset;
 		if(attribute.name == "c_id"){
 			*result = &c_id[offset];
 		}else if(attribute.name == "c_d_id"){
@@ -194,7 +194,7 @@ struct Order : Table{
 	std::vector<Numeric<1,0>> o_all_local;
 
 	virtual int getColumn(void** result, Schema::Relation::Attribute &attribute, int size, int offset){
-		int remain = o_id.size() - offset + 1;
+		int remain = o_id.size() - offset;
 		if(attribute.name == "o_id"){
 			*result = &o_id[offset];
 		}else if(attribute.name == "o_d_id"){
