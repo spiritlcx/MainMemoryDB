@@ -49,7 +49,7 @@ struct Table{
 		return attributes;
 	}
 
-	virtual int getColumn(void **result, Schema::Relation::Attribute &attribute, int size, int offset) = 0;
+	virtual int getColumn(void **result, std::string column , int size, int offset) = 0;
 
 };
 
@@ -102,15 +102,26 @@ struct Customer : Table{
 	std::vector<Varchar<500>> c_data;
 	
 	std::vector<unsigned> primaryKey;
-	virtual int getColumn(void** result, Schema::Relation::Attribute &attribute, int size, int offset){
+
+
+	Integer get_c_id(int i){
+		return c_id[i];
+	}
+
+	Integer get_c_d_id(int i){
+		return c_d_id[i];
+	}
+	
+
+	virtual int getColumn(void** result, std::string column, int size, int offset){
 		int remain = c_id.size() - offset;
-		if(attribute.name == "c_id"){
+		if(column == "c_id"){
 			*result = &c_id[offset];
-		}else if(attribute.name == "c_d_id"){
+		}else if(column == "c_d_id"){
 			*result = &c_d_id[offset];
-		}else if(attribute.name == "c_w_id"){
+		}else if(column == "c_w_id"){
 			*result = &c_w_id[offset];
-		}else if(attribute.name == "c_balance"){
+		}else if(column == "c_balance"){
 			*result = &c_balance[offset];
 		}
 		
@@ -193,15 +204,27 @@ struct Order : Table{
 	std::vector<Numeric<2,0>> o_ol_cnt;
 	std::vector<Numeric<1,0>> o_all_local;
 
-	virtual int getColumn(void** result, Schema::Relation::Attribute &attribute, int size, int offset){
+	Integer get_o_c_id(int i){
+		return o_c_id[i];
+	}
+
+	Integer get_o_d_id(int i){
+		return o_d_id[i];
+	}
+
+	int size(){
+		return o_id.size();
+	}
+
+	virtual int getColumn(void** result, std::string column , int size, int offset){
 		int remain = o_id.size() - offset;
-		if(attribute.name == "o_id"){
+		if(column == "o_id"){
 			*result = &o_id[offset];
-		}else if(attribute.name == "o_d_id"){
+		}else if(column == "o_d_id"){
 			*result = &o_d_id[offset];
-		}else if(attribute.name == "o_w_id"){
+		}else if(column == "o_w_id"){
 			*result = &o_w_id[offset];
-		}else if(attribute.name == "o_c_id"){
+		}else if(column == "o_c_id"){
 			*result = &o_c_id[offset];
 		}		
 		

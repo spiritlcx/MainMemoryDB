@@ -62,6 +62,7 @@ int main(int argc, char *argv[]){
 	columns.push_back("c_id");
 	columns.push_back("c_d_id");
 	columns.push_back("c_w_id");
+	columns.push_back("c_balance");
 	
 	std::chrono::high_resolution_clock::time_point querystart = std::chrono::high_resolution_clock::now();
 
@@ -74,23 +75,77 @@ int main(int argc, char *argv[]){
 	joinexpression.push_back(std::make_tuple("c_id","o_c_id"));
 	joinexpression.push_back(std::make_tuple("c_d_id","o_d_id"));
 
-	    std::vector<std::string> probe;
-		probe.push_back("o_id");
-		probe.push_back("o_d_id");
-		probe.push_back("o_w_id");
-		probe.push_back("o_c_id");
+	std::vector<std::string> probe;
+	probe.push_back("o_id");
+	probe.push_back("o_d_id");
+	probe.push_back("o_w_id");
+	probe.push_back("o_c_id");
+
+	std::vector<std::string> printexpression;
+//	printexpression.push_back("c_id");
+//	printexpression.push_back("c_d_id");
+//	printexpression.push_back("c_w_id");
+//	printexpression.push_back("c_balance");
+	printexpression.push_back("o_id");
+	printexpression.push_back("o_c_id");
+	printexpression.push_back("o_d_id");
+		
 	int sum = 0;
+
 	while(!scanner.end){
 
 		Dataflow dataflow = scanner.scan(columns);
-//		SelectOperation::select(dataflow, selectexpression);
+		dataflow = SelectOperation::select(dataflow, selectexpression);
 		JoinOperation join;
 		while(!join.end){
 			Dataflow result= join.hashjoin(dataflow, probe, joinexpression);
 			sum+=result.size;
+			PrintOperation::print(result, printexpression);
 		}
 	}
 	std::cout << sum<<std::endl;
+
+
+
+/*
+typedef std::tuple<Integer,Integer> key_thashJoin0;
+typedef std::tuple<Integer> key_tvaluehashJoin0;
+struct key_hashhashJoin0 : public std::unary_function<key_thashJoin0, std::size_t>{
+  std::size_t operator()(const key_thashJoin0& k) const{
+    return std::get<0>(k).value+std::get<1>(k).value;
+  }
+};
+
+struct key_equalhashJoin0 : public std::binary_function<key_thashJoin0, key_thashJoin0, bool>{
+  bool operator()(const key_thashJoin0& v0, const key_thashJoin0& v1) const{
+    return (
+        std::get<0>(v0) == std::get<0>(v1)&&
+          std::get<1>(v0) == std::get<1>(v1)
+    );
+  }
+};
+
+struct hashJoin0{
+  Integer c_id;
+};
+
+
+std::unordered_multimap<key_thashJoin0, key_tvaluehashJoin0, key_hashhashJoin0,key_equalhashJoin0> hashmaphashJoin0;
+for(unsigned i = 0; i <customer->size(); i++){
+  hashmaphashJoin0.insert(std::make_pair(std::make_tuple(customer->get_c_id(i),customer->get_c_d_id(i)), std::make_tuple(customer->get_c_id(i))));
+}
+int sum = 0;
+for(unsigned i = 0; i <order->size(); i++){
+  auto range = hashmaphashJoin0.equal_range(std::make_tuple(order->get_o_c_id(i),order->get_o_d_id(i)));
+  for(auto it = range.first; it != range.second; it++){
+    hashJoin0 t;
+    sum++;
+    t.c_id = std::get<0>(it->second);
+  }
+}
+std::cout << sum<< std::endl;
+
+*/
 
 			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
 	
