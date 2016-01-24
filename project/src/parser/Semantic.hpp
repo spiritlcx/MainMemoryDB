@@ -26,7 +26,7 @@ void setQuery(const Query &query){
 }
 
 void analysis(std::unordered_map<std::string, Schema::Relation> &relations) const;
-private:
+
 std::unique_ptr<Schema> schema;
 Query query;
 

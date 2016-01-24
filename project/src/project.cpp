@@ -4,10 +4,60 @@
 #include <chrono>
 #include <ratio>
 
+Operation *buildTree(Query &query, std::unique_ptr<Schema> &schema){
+	PrintOperation *printOperation = new PrintOperation();
+	if(query.relations.size() > 1){
+		bool firstjoin = true;
+		JoinOperation *formerJoin = nullptr;
+		for(unsigned i = 0; i < query.relations.size() - 1; i++){
+			JoinOperation *joinOperation = new JoinOperation();
+			if(firstjoin){
+				std::string leftTable = query.relations[i];
+				std::string rightTable = query.relations[i+1];
+				for(std::pair<std::string, std::string> select : query.selectconditions){
+					if(columnTable[std::get<0>(select)]->name ==  leftTable){
+						SelectOperation *selectOperation = new SelectOperation();
+						joinOperation->left = selectOperation;
+						ScanOperation *scanOperation = new ScanOperation();
+						selectOperation->left = scanOperation;
+					}else{
+						ScanOperation *scanOperation = new ScanOperation();
+						joinOperation->left = scanOperation;						
+					}
+
+					if(columnTable[std::get<0>(select)]->name ==  rightTable){
+						SelectOperation *selectOperation = new SelectOperation();
+						joinOperation->right = selectOperation;
+						ScanOperation *scanOperation = new ScanOperation();
+						selectOperation->left = scanOperation;		
+					}else{
+						ScanOperation *scanOperation = new ScanOperation();
+						joinOperation->right = scanOperation;
+					}
+				}
+				firstjoin = false;
+			}else{
+				joinOperation->left = formerJoin;
+				std::string rightTable = query.relations[i+1];
+				for(std::pair<std::string, std::string> select : query.selectconditions){
+					if(columnTable[std::get<0>(select)]->name ==  rightTable){
+						SelectOperation *selectOperation = new SelectOperation();
+						joinOperation->right = selectOperation;
+					}
+				}	
+			}
+			formerJoin = joinOperation;
+			printOperation->left = formerJoin;
+		}
+		return printOperation;
+	}else{
+		//TODO
+		return printOperation;
+	}
+	return printOperation;
+}
 
 int main(int argc, char *argv[]){
-
-
 	Customer *customer = new Customer();
 	customer->init();
 	
@@ -16,21 +66,22 @@ int main(int argc, char *argv[]){
 
 	relationTable.insert({"customer",customer});
 	relationTable.insert({"order",order});
-/*
+
 	Orderline *orderline = new Orderline();
-	Warehouse *warehouse = new Warehouse();
-	District *district = new District();
-	Item *item = new Item();
+//	Warehouse *warehouse = new Warehouse();
+//	District *district = new District();
+//	Item *item = new Item();
 
 	orderline->init();
-	warehouse->init();
-	district->init();
-	item->init();
+//	warehouse->init();
+//	district->init();
+//	item->init();
+
 	relationTable.insert({"orderline",orderline});
-	relationTable.insert({"warehouse",warehouse});
-	relationTable.insert({"district",district});
-	relationTable.insert({"item",item});
-*/
+//	relationTable.insert({"warehouse",warehouse});
+//	relationTable.insert({"district",district});
+//	relationTable.insert({"item",item});
+
 
 	QueryParser queryParser;
 	CreateParser createParser("schema.sql");	
@@ -53,60 +104,6 @@ int main(int argc, char *argv[]){
 	
 	Semantic semantic(schema);
 
-	ScanOperation scanner;
-
-	std::vector<std::string> columns;
-	columns.push_back("c_id");
-	columns.push_back("c_d_id");
-	columns.push_back("c_w_id");
-	columns.push_back("c_balance");
-	
-	std::chrono::high_resolution_clock::time_point querystart = std::chrono::high_resolution_clock::now();
-
-
-	std::vector<std::tuple<std::string,std::string,std::string>> selectexpression;
-	selectexpression.push_back(std::make_tuple("=", "c_id", "5"));
-	selectexpression.push_back(std::make_tuple("=", "c_d_id", "5"));
-
-	std::vector<std::tuple<std::string,std::string,std::string>> selectexpression1;
-	selectexpression1.push_back(std::make_tuple("=", "o_c_id", "5"));
-	selectexpression1.push_back(std::make_tuple("=", "o_d_id", "5"));
-
-	std::vector<std::tuple<std::string, std::string>> joinexpression;
-	joinexpression.push_back(std::make_tuple("c_id","o_c_id"));
-	joinexpression.push_back(std::make_tuple("c_d_id","o_d_id"));
-
-	std::vector<std::string> probe;
-	probe.push_back("o_id");
-	probe.push_back("o_d_id");
-	probe.push_back("o_w_id");
-	probe.push_back("o_c_id");
-
-	std::vector<std::string> printexpression;
-	printexpression.push_back("c_id");
-	printexpression.push_back("c_d_id");
-	printexpression.push_back("c_w_id");
-	printexpression.push_back("c_balance");
-	printexpression.push_back("o_id");
-	printexpression.push_back("o_c_id");
-	printexpression.push_back("o_d_id");
-		
-	int sum = 0;
-
-	while(!scanner.end){
-	ScanOperation scanner1;
-		Dataflow dataflow = scanner.scan(columns);
-		dataflow = SelectOperation::select(dataflow, selectexpression);
-		JoinOperation join;
-		while(!scanner1.end){
-	        Dataflow prob = scanner1.scan(probe);
-			prob = SelectOperation::select(prob, selectexpression1);
-
-			Dataflow result= join.hashjoin(dataflow, prob, joinexpression);
-			sum+=result.size;
-			PrintOperation::print(result, printexpression);
-		}
-	}
 
 /*
 typedef std::tuple<Integer,Integer> key_thashJoin0;
@@ -148,15 +145,7 @@ std::cout << sum<< std::endl;
 
 */
 
-		std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
 	
-		std::chrono::duration<double> query_duration = std::chrono::duration_cast<std::chrono::duration<double>>(queryfinish-querystart);
-
-		std::cout << "Query time is " << query_duration.count() << " seconds" << std::endl;
-
-	
-
-	/*	
 	while(true){
 		try {
 
@@ -165,21 +154,67 @@ std::cout << sum<< std::endl;
 			Query query = queryParser.parse();
 			semantic.setQuery(query);
 			semantic.analysis(relations);
+			
+			buildTree(query, semantic.schema);
 
+			ScanOperation scanner;
 
+			std::vector<std::string> columns;
+			columns.push_back("c_id");
+			columns.push_back("c_d_id");
+			columns.push_back("c_w_id");
+			columns.push_back("c_balance");
+	
 			std::chrono::high_resolution_clock::time_point querystart = std::chrono::high_resolution_clock::now();
 
-	
+			std::vector<std::tuple<std::string,std::string,std::string>> selectexpression;
+			selectexpression.push_back(std::make_tuple("=", "c_id", "5"));
+			selectexpression.push_back(std::make_tuple("=", "c_d_id", "5"));
 
+			std::vector<std::tuple<std::string,std::string,std::string>> selectexpression1;
+			selectexpression1.push_back(std::make_tuple("=", "o_c_id", "5"));
+			selectexpression1.push_back(std::make_tuple("=", "o_d_id", "5"));
+
+			std::vector<std::tuple<std::string, std::string>> joinexpression;
+			joinexpression.push_back(std::make_tuple("c_id","o_c_id"));
+			joinexpression.push_back(std::make_tuple("c_d_id","o_d_id"));
+
+			std::vector<std::string> probe;
+			probe.push_back("o_id");
+			probe.push_back("o_d_id");
+			probe.push_back("o_w_id");
+			probe.push_back("o_c_id");
+
+			std::vector<std::string> printexpression;
+			printexpression.push_back("c_id");
+			printexpression.push_back("c_d_id");
+			printexpression.push_back("c_w_id");
+			printexpression.push_back("c_balance");
+			printexpression.push_back("o_id");
+			printexpression.push_back("o_c_id");
+			printexpression.push_back("o_d_id");
+
+			while(!scanner.end){
+				ScanOperation scanner1;
+				Dataflow dataflow = scanner.scan(columns);
+				dataflow = SelectOperation::select(dataflow, selectexpression);
+				JoinOperation join;
+				while(!scanner1.end){
+	    		    Dataflow prob = scanner1.scan(probe);
+					prob = SelectOperation::select(prob, selectexpression1);
+					Dataflow result= join.hashjoin(dataflow, prob, joinexpression);
+
+					PrintOperation::print(result, printexpression);
+				}
+			}
 
 			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
 	
-			std::chrono::duration<double> query_duration = std::chrono::duration_cast<std::chrono::duration<double>>(queryfinish-querystart);
+		std::chrono::duration<double> query_duration = std::chrono::duration_cast<std::chrono::duration<double>>(queryfinish-querystart);
 
-			std::cout << "Query time is ";
-			std::cout << query_duration.count() << " seconds" << std::endl;
+		std::cout << "Query time is " << query_duration.count() << " seconds" << std::endl;
 
-		
+	
 		} catch (ParserError& e) {
 			std::cerr << e.what() << std::endl;
 		} catch (SemanticError& e){
@@ -187,6 +222,6 @@ std::cout << sum<< std::endl;
 		}
 	}
 
-*/
+
 	return 0;
 }

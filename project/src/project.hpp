@@ -132,10 +132,6 @@ struct Customer : Table{
 	}
 
 	void init(){
-		primaryKey.push_back(2);
-		primaryKey.push_back(1);
-		primaryKey.push_back(0);
-
 		attributes.push_back(Attribute("c_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("c_d_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("c_w_id",Types::Tag::Integer, 0, 0, 0));
@@ -236,10 +232,6 @@ struct Order : Table{
 
 
 	void init(){
-		primaryKey.push_back(2);
-		primaryKey.push_back(1);
-		primaryKey.push_back(0);
-
 		attributes.push_back(Attribute("o_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("o_d_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("o_w_id",Types::Tag::Integer, 0, 0, 0));
@@ -284,22 +276,38 @@ struct Orderline : Table{
 		Numeric<6,2> ol_amount;
 		Char<24> ol_dist_info;
 	};
-	Row operator [](const int& i) const {return orderlines[i];}
-	unsigned size(){return orderlines.size();}
 
-	std::vector<Row> orderlines;
-	std::vector<unsigned> primaryKey;
+	std::vector<Integer> ol_o_id;
+	std::vector<Integer> ol_d_id;
+	std::vector<Integer> ol_w_id;
+	std::vector<Integer> ol_number;
+	std::vector<Integer> ol_i_id;
+	std::vector<Integer> ol_supply_w_id;
+	std::vector<Timestamp> ol_delivery_d;
+	std::vector<Numeric<2,0>> ol_quantity;
+	std::vector<Numeric<6,2>> ol_amount;
+	std::vector<Char<24>> ol_dist_info;
 
-	std::vector<Row> getAll(){
-		return orderlines;
-	}
+	virtual int getColumn(void** result, std::string column , int size, int offset){
+		int remain = ol_o_id.size() - offset;
+		if(column == "ol_o_id"){
+			*result = &ol_o_id[offset];
+		}else if(column == "ol_d_id"){
+			*result = &ol_d_id[offset];
+		}else if(column == "ol_w_id"){
+			*result = &ol_w_id[offset];
+		}else if(column == "ol_number"){
+			*result = &ol_number[offset];
+		}		
+		
+		if(size < remain)
+			return size;
+		else
+			return remain;
+	}	
+	
 
 	void init(){
-		primaryKey.push_back(2);
-		primaryKey.push_back(1);
-		primaryKey.push_back(0);
-		primaryKey.push_back(3);
-
 		attributes.push_back(Attribute("ol_o_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("ol_d_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("ol_w_id",Types::Tag::Integer, 0, 0, 0));
@@ -318,17 +326,16 @@ struct Orderline : Table{
 		while(!f.eof() && f >> line){
 			std::vector<std::string> data = split(line, '|');
 			Row row;
-			row.ol_o_id =Integer::castString(data[0].c_str(), data[0].length());
-			row.ol_d_id =Integer::castString(data[1].c_str(), data[1].length());
-			row.ol_w_id =Integer::castString(data[2].c_str(), data[2].length());
-			row.ol_number =Integer::castString(data[3].c_str(), data[3].length());
-			row.ol_i_id =Integer::castString(data[4].c_str(), data[4].length());
-			row.ol_supply_w_id =Integer::castString(data[5].c_str(), data[5].length());
+			ol_o_id.push_back(Integer::castString(data[0].c_str(), data[0].length()));
+			ol_d_id.push_back(Integer::castString(data[1].c_str(), data[1].length()));
+			ol_w_id.push_back(Integer::castString(data[2].c_str(), data[2].length()));
+			ol_number.push_back(Integer::castString(data[3].c_str(), data[3].length()));
+			ol_i_id.push_back(Integer::castString(data[4].c_str(), data[4].length()));
+			ol_supply_w_id.push_back(Integer::castString(data[5].c_str(), data[5].length()));
 //			row.ol_delivery_d =Timestamp::castString(data[6].c_str(), data[6].length());
-			row.ol_quantity =Numeric<2,0>::castString(data[7].c_str(), data[7].length());
-			row.ol_amount =Numeric<6,2>::castString(data[8].c_str(), data[8].length());
-			row.ol_dist_info =Char<24>::castString(data[9].c_str(), data[9].length());
-			orderlines.push_back(row);
+			ol_quantity.push_back(Numeric<2,0>::castString(data[7].c_str(), data[7].length()));
+			ol_amount.push_back(Numeric<6,2>::castString(data[8].c_str(), data[8].length()));
+			ol_dist_info.push_back(Char<24>::castString(data[9].c_str(), data[9].length()));
 
 		}
 	}

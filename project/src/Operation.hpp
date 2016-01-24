@@ -6,7 +6,7 @@
 #include <string>
 
 #define LEN 32
-#define N 30000
+#define N 80000
 
 //relation name and relation object
 std::unordered_map<std::string, Schema::Relation> relations;
@@ -22,16 +22,31 @@ struct Dataflow{
 	std::unordered_map<std::string, void*> data;
 	std::vector<std::string> colorder;
 	std::unordered_map<std::string, Schema::Relation::Attribute> colattribute;
+	~Dataflow(){
+		if(!flag)
+			return;
+		for(std::string col : colorder){
+			std::cout << col << std::endl;
+			delete [] (Integer*)data[col];
+		}
+	}	
 	int size;
 	int select[N];
+	bool flag = false;
 };
 
 int scan_column(Table *table, void** result, std::string column, int size, int offset){
 	return table->getColumn(result, column, size, offset);
 }
 
+class Operation{
+public:
+	std::string name;
+	Operation *left;
+	Operation *right;
+};
 
-class ScanOperation{
+class ScanOperation : public Operation{
 //scan the only needed columns
 public:
 	Dataflow scan(std::vector<std::string> columns){
@@ -106,7 +121,7 @@ int select_smaller_Integer(int *output, Integer *input, int value, int size){
 //=(c_id, 12)
 //=(c_first, 'chenxi')
 
-class SelectOperation{
+class SelectOperation : public Operation{
 public:
 	static Dataflow select(Dataflow &dataflow, std::vector<std::tuple<std::string, std::string, std::string>> expression){
 		int size = dataflow.size;
@@ -155,6 +170,11 @@ struct HashTable{
 	int next[N+1];
 	void *values[100];
 	std::vector<std::string> colorder;
+	~HashTable(){
+		for(unsigned i = 0; i < colorder.size(); i++){
+			delete [] (Integer*)values[i];
+		}
+	}
 };
 
 void hash(int *select, int *hashValue, Integer *key, int size){
@@ -253,7 +273,7 @@ int gather(int *select, int *toAssign, Integer *newvalue, Integer *value, int *g
 	return index;
 }
 
-class JoinOperation{
+class JoinOperation : public Operation{
 public:
 	bool initial = true;
 	bool built = false;
@@ -270,7 +290,7 @@ public:
 			int hashValue[dataflow.size];
 			memset(hashValue, 0, dataflow.size*sizeof(int));
 		
-			for(std::tuple<std::string, std::string> exp: expression){
+			for(const std::tuple<std::string, std::string> &exp: expression){
 				hash(dataflow.select, hashValue, (Integer*)dataflow.data[std::get<0>(exp)], dataflow.size);
 			}
 			bucket(hashValue, dataflow.size);
@@ -286,10 +306,10 @@ public:
 				M++;
 			}
 
-			for(std::string column : dataflow.colorder){
-				hashTable.values[M] = new Integer[dataflow.size+1];
+			for(const std::string &column : dataflow.colorder){
 				if(std::find(hashTable.colorder.begin(), hashTable.colorder.end(),column) != hashTable.colorder.end())
 					continue;
+				hashTable.values[M] = new Integer[dataflow.size+1];
 				hashTable.colorder.push_back(column);
 
 				spread_Integer(dataflow.select, (Integer*)hashTable.values[M], groupId, (Integer*)dataflow.data[column], dataflow.size);
@@ -297,25 +317,17 @@ public:
 
 			}
 		}
-//		Dataflow prob = scanner.scan(probe);
-
-//		std::vector<std::tuple<std::string,std::string,std::string>> selectexpression;
-//		selectexpression.push_back(std::make_tuple("=", "o_c_id", "5"));
-//		selectexpression.push_back(std::make_tuple("=", "o_d_id", "5"));
-
-//		prob = SelectOperation::select(prob, selectexpression);
-//		end = scanner.end;
 
 		int probsize = prob.size;
 		Dataflow result;
-
+		result.flag = true;
 		if(probsize == 0){
 			return result;
 		}
 
 		int probehashValue[probsize];
 		memset(probehashValue, 0, probsize*sizeof(int));
-		for(std::tuple<std::string, std::string> exp : expression){
+		for(const std::tuple<std::string, std::string> &exp : expression){
 			hash(prob.select, probehashValue, (Integer*)prob.data[std::get<1>(exp)], probsize);
 		}
 
@@ -338,7 +350,7 @@ public:
 			memset(differ, 0, probsize*sizeof(int));
 
 			int i = 0;
-			for(std::tuple<std::string, std::string> exp: expression){
+			for(const std::tuple<std::string, std::string> &exp: expression){
 				check(prob.select, differ, toCheck, pgroupId, rgroupId, sgroupId, (Integer*)hashTable.values[i], (Integer*)prob.data[std::get<1>(exp)], m);
 				i++;
 			}
@@ -436,9 +448,7 @@ public:
 	}
 };
 
-
-
-class PrintOperation{
+class PrintOperation : public Operation{
 public:
 	static void print(Dataflow &dataflow, std::vector<std::string> &columns){
 		for(int i = 0; i < dataflow.size; i++){
