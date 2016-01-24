@@ -6,8 +6,11 @@ int main(){
 	Numeric<2,9> m(50123456789);
 	
 	void *n = &m;
-	bool flag = (m == *(Numeric<2,9>*)(n));
+
+	Integer nn = 3;
+	int ll = 3;
+
+	bool flag = (m == 50123456789);
 	std::cout << flag <<std::endl;
-	std::cout <<*(Numeric<4,6>*)(n)<< std::endl;
-	return 0;
+return 0;
 }

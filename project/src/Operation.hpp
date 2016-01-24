@@ -6,7 +6,7 @@
 #include <string>
 
 #define LEN 32
-#define N 80000
+#define N 30000
 
 //relation name and relation object
 std::unordered_map<std::string, Schema::Relation> relations;
@@ -64,10 +64,10 @@ public:
 	bool end = false;
 };
 
-int select_equal_Integer(int *output, void *input, int value, int size){
+int select_equal_Integer(int *output, Integer *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(*((Integer*)input+output[i]) == value){
+		if(input[output[i]] == value){
 			output[count++] = output[i];
 		}
 
@@ -77,10 +77,10 @@ int select_equal_Integer(int *output, void *input, int value, int size){
 	return count;
 }
 
-int select_bigger_Integer(int *output, void *input, int value, int size){
+int select_bigger_Integer(int *output, Integer *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(*((Integer*)input+output[i]) > value){
+		if(input[output[i]] > value){
 			output[count] = output[i];
 			count++;
 		}
@@ -90,10 +90,10 @@ int select_bigger_Integer(int *output, void *input, int value, int size){
 	return count;
 }
 
-int select_smaller_Integer(int *output, void *input, int value, int size){
+int select_smaller_Integer(int *output, Integer *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(*((Integer*)input+output[i]) < value){
+		if(input[output[i]] < value){
 			output[count] = output[i];
 			count++;
 		}
@@ -114,11 +114,11 @@ public:
 			if(std::get<0>(exp) == "="){
 				switch(attributes[std::get<1>(exp)].type){
 					case Types::Tag::Integer:
-						size = select_equal_Integer(dataflow.select, dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_equal_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 
 					case Types::Tag::Numeric:
-						size = select_equal_Integer(dataflow.select, dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_equal_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 					default:
 						break;
@@ -127,7 +127,7 @@ public:
 
 				switch(attributes[std::get<1>(exp)].type){
 					case Types::Tag::Integer:
-						size = select_smaller_Integer(dataflow.select, dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_smaller_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 					default:
 						break;
@@ -135,7 +135,7 @@ public:
 			}else if(std::get<0>(exp) == ">"){
 				switch(attributes[std::get<1>(exp)].type){
 					case Types::Tag::Integer:
-						size = select_bigger_Integer(dataflow.select, dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_bigger_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 					default:
 						break;
@@ -153,13 +153,13 @@ public:
 struct HashTable{
 	int first[N];
 	int next[N+1];
-	int *values[10];
+	void *values[100];
 	std::vector<std::string> colorder;
 };
 
-void hash(int *select, int *hashValue, void *key, int size){
+void hash(int *select, int *hashValue, Integer *key, int size){
 	for(int i = 0; i < size; i++){
-		hashValue[i] = (hashValue[i] + *((int*)key+select[i]));
+		hashValue[i] += key[select[i]].value;
 	}
 }
 
@@ -178,10 +178,17 @@ void hashTableInsert(int *select, int *groupId, HashTable &hashTable, int *hashV
 	}
 }
 
-void spread(int *select, void *value, int *groupId, void *inputvalue, int size){
+void spread_Integer(int *select, Integer *value, int *groupId, Integer *inputvalue, int size){
 
 	for(int i = 0; i < size; i++){
-		*((int*)value+groupId[i]) = *((int*)inputvalue+select[i]);
+		value[groupId[i]] = inputvalue[select[i]];
+	}
+}
+
+void spread_Numeric(int *select, Integer *value, int *groupId, Integer *inputvalue, int size){
+
+	for(int i = 0; i < size; i++){
+		value[groupId[i]] = inputvalue[select[i]];
 	}
 }
 
@@ -196,7 +203,7 @@ int lookupInitial(int *toCheck, int *pgroupId, int *first, int *hashValue, int s
 	return count;
 }
 
-void check(int *select, int *differ, int *toCheck, int *groupId, int *rgroupId, int *sgroupId, int *value, int *probekey, int m){
+void check(int *select, int *differ, int *toCheck, int *groupId, int *rgroupId, int *sgroupId, Integer *value, Integer *probekey, int m){
 	for(int i = 0; i < m; i++){
 		int index = groupId[toCheck[i]];
 		if(probekey[select[toCheck[i]]] != value[index]){
@@ -239,6 +246,13 @@ int gather(int *select, int *toAssign, Integer *newvalue, Integer *value, int in
 	return index;
 }
 
+int gather(int *select, int *toAssign, Integer *newvalue, Integer *value, int *groupId, int index, int size){
+	for(int i = 0; i < size; i++){
+		newvalue[index++] = value[groupId[toAssign[i]]];
+	}
+	return index;
+}
+
 class JoinOperation{
 public:
 	bool initial = true;
@@ -247,7 +261,7 @@ public:
 	ScanOperation scanner;
 	bool end = false;
 	unsigned M = 0;
-	Dataflow hashjoin(Dataflow &dataflow, std::vector<std::string> &probe, std::vector<std::tuple<std::string, std::string>> expression){
+	Dataflow hashjoin(Dataflow &dataflow, Dataflow &prob, std::vector<std::tuple<std::string, std::string>> expression){
 		if(!built){
 			built = true;
 			memset(hashTable.first, 0, N*sizeof(int));
@@ -257,7 +271,7 @@ public:
 			memset(hashValue, 0, dataflow.size*sizeof(int));
 		
 			for(std::tuple<std::string, std::string> exp: expression){
-				hash(dataflow.select, hashValue, dataflow.data[std::get<0>(exp)], dataflow.size);
+				hash(dataflow.select, hashValue, (Integer*)dataflow.data[std::get<0>(exp)], dataflow.size);
 			}
 			bucket(hashValue, dataflow.size);
 			int groupId[dataflow.size];
@@ -265,32 +279,32 @@ public:
 			hashTableInsert(dataflow.select, groupId, hashTable, hashValue, dataflow.size);
 
 			for(const std::tuple<std::string, std::string> &exp: expression){
-				hashTable.values[M] = new int[dataflow.size+1];	
+				hashTable.values[M] = new Integer[dataflow.size+1];	
 				hashTable.colorder.push_back(std::get<0>(exp));
 
-				spread(dataflow.select, hashTable.values[M], groupId, dataflow.data[std::get<0>(exp)], dataflow.size);
+				spread_Integer(dataflow.select, (Integer*)hashTable.values[M], groupId, (Integer*)dataflow.data[std::get<0>(exp)], dataflow.size);
 				M++;
 			}
 
 			for(std::string column : dataflow.colorder){
-				hashTable.values[M] = new int[dataflow.size+1];
+				hashTable.values[M] = new Integer[dataflow.size+1];
 				if(std::find(hashTable.colorder.begin(), hashTable.colorder.end(),column) != hashTable.colorder.end())
 					continue;
 				hashTable.colorder.push_back(column);
 
-				spread(dataflow.select, hashTable.values[M], groupId, dataflow.data[column], dataflow.size);
+				spread_Integer(dataflow.select, (Integer*)hashTable.values[M], groupId, (Integer*)dataflow.data[column], dataflow.size);
 				M++;
 
 			}
 		}
-		Dataflow prob = scanner.scan(probe);
+//		Dataflow prob = scanner.scan(probe);
 
-		std::vector<std::tuple<std::string,std::string,std::string>> selectexpression;
-		selectexpression.push_back(std::make_tuple("=", "o_c_id", "5"));
-		selectexpression.push_back(std::make_tuple("=", "o_d_id", "5"));
+//		std::vector<std::tuple<std::string,std::string,std::string>> selectexpression;
+//		selectexpression.push_back(std::make_tuple("=", "o_c_id", "5"));
+//		selectexpression.push_back(std::make_tuple("=", "o_d_id", "5"));
 
-		prob = SelectOperation::select(prob, selectexpression);
-		end = scanner.end;
+//		prob = SelectOperation::select(prob, selectexpression);
+//		end = scanner.end;
 
 		int probsize = prob.size;
 		Dataflow result;
@@ -302,7 +316,7 @@ public:
 		int probehashValue[probsize];
 		memset(probehashValue, 0, probsize*sizeof(int));
 		for(std::tuple<std::string, std::string> exp : expression){
-			hash(prob.select, probehashValue, prob.data[std::get<1>(exp)], probsize);
+			hash(prob.select, probehashValue, (Integer*)prob.data[std::get<1>(exp)], probsize);
 		}
 
 		bucket(probehashValue, probsize);
@@ -320,13 +334,12 @@ public:
 		int m =	lookupInitial(toCheck, pgroupId, hashTable.first, probehashValue, probsize);
 	 
 		while(m > 0){
-
 			int differ[probsize];
 			memset(differ, 0, probsize*sizeof(int));
 
 			int i = 0;
 			for(std::tuple<std::string, std::string> exp: expression){
-				check(prob.select, differ, toCheck, pgroupId, rgroupId, sgroupId, (int*)hashTable.values[i], (int*)prob.data[std::get<1>(exp)], m);
+				check(prob.select, differ, toCheck, pgroupId, rgroupId, sgroupId, (Integer*)hashTable.values[i], (Integer*)prob.data[std::get<1>(exp)], m);
 				i++;
 			}
 			build(differ, toCheck, pgroupId, rgroupId, sgroupId, m);
@@ -336,6 +349,7 @@ public:
 
 		int count = 0;
 
+//count the number of match
 		for(int i = 0; i < probsize; i++){			
 			if(rgroupId[i] != 0){
 				count++;
@@ -348,11 +362,11 @@ public:
 		}
 
 		result.size = count;
-		for(int i = 0; i < count; i++)
-			result.select[i] = i;
-
 		if(count==0)
 			return result;
+
+		for(int i = 0; i < count; i++)
+			result.select[i] = i;
 
 		for(unsigned j = 0; j < prob.colorder.size(); j++){
 			int toAssign[probsize];
@@ -376,7 +390,6 @@ public:
 			index += matchnum;
 
 			while(matchnum > 0){
-
 				matchnum = selectMisses(toAssign, tgroupId, sgroupId, matchnum);
 				findNext(toAssign, sgroupId, tgroupId, matchnum);
 				gather(prob.select, toAssign, newvalue, value, index, matchnum);
@@ -387,35 +400,38 @@ public:
 			result.data.insert({column, newvalue});
 		}
 
+		for(unsigned j = 0; j < dataflow.colorder.size(); j++){
+			int toAssign[probsize];
+			memset(toAssign, 0, probsize*sizeof(int));
+			int matchnum = 0;
 
-/*
-		for(unsigned j = 0; j < prob.colorder.size(); j++){
-			int index = 0;
-			std::string column = prob.colorder[j];
-			Integer *col = new Integer[count];
-			int *value = (int*)prob.data[column];
-			for(int i = 0; i < prob.size; i++){
+			for(int i = 0; i < probsize; i++){
 				if(rgroupId[i] != 0)
-					col[index++] = value[i];
+					toAssign[matchnum++] = i;
 			}
-			result.colattribute.insert({column, prob.colattribute[column]});
-			result.data.insert({column, col});
-		}
 
-		for(unsigned j = 0; j < hashTable.colorder.size(); j++){
+			int tgroupId[probsize];
+			for(int i = 0; i < probsize; i++)
+				tgroupId[i] = rgroupId[i];
+
+			std::string column = dataflow.colorder[j];
+			Integer* value = (Integer*)hashTable.values[j];
+			Integer* newvalue = new Integer[count];
 			int index = 0;
-			std::string column = hashTable.colorder[j];
-			Integer *col = new Integer[count];
-			int *value = (int*)hashTable.values[j];
+			gather(prob.select, toAssign, newvalue, value, tgroupId, index, matchnum);
+			index += matchnum;
 
-			for(int i = 0; i < prob.size; i++){
-				if(rgroupId[i] != 0)
-					col[index++] = value[rgroupId[i]];
+			while(matchnum > 0){
+				matchnum = selectMisses(toAssign, tgroupId, sgroupId, matchnum);
+				findNext(toAssign, sgroupId, tgroupId, matchnum);
+				gather(prob.select, toAssign, newvalue, value, tgroupId, index, matchnum);
+				index += matchnum;
 			}
+
 			result.colattribute.insert({column, dataflow.colattribute[column]});
-			result.data.insert({column, col});
+			result.data.insert({column, newvalue});	
 		}
-*/
+
 		return result;
 	}
 };

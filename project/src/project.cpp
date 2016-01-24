@@ -16,24 +16,21 @@ int main(int argc, char *argv[]){
 
 	relationTable.insert({"customer",customer});
 	relationTable.insert({"order",order});
-//	std::cout << scan_Integer(customer, "c_id", 1024, 0) << std::endl;
 /*
-	Order *order = new Order();
 	Orderline *orderline = new Orderline();
 	Warehouse *warehouse = new Warehouse();
 	District *district = new District();
 	Item *item = new Item();
 
-	customer->init();
-	order->init();
 	orderline->init();
 	warehouse->init();
 	district->init();
 	item->init();
+	relationTable.insert({"orderline",orderline});
+	relationTable.insert({"warehouse",warehouse});
+	relationTable.insert({"district",district});
+	relationTable.insert({"item",item});
 */
-
-
-//	tbb::task_scheduler_init init(4);
 
 	QueryParser queryParser;
 	CreateParser createParser("schema.sql");	
@@ -71,6 +68,10 @@ int main(int argc, char *argv[]){
 	selectexpression.push_back(std::make_tuple("=", "c_id", "5"));
 	selectexpression.push_back(std::make_tuple("=", "c_d_id", "5"));
 
+	std::vector<std::tuple<std::string,std::string,std::string>> selectexpression1;
+	selectexpression1.push_back(std::make_tuple("=", "o_c_id", "5"));
+	selectexpression1.push_back(std::make_tuple("=", "o_d_id", "5"));
+
 	std::vector<std::tuple<std::string, std::string>> joinexpression;
 	joinexpression.push_back(std::make_tuple("c_id","o_c_id"));
 	joinexpression.push_back(std::make_tuple("c_d_id","o_d_id"));
@@ -82,10 +83,10 @@ int main(int argc, char *argv[]){
 	probe.push_back("o_c_id");
 
 	std::vector<std::string> printexpression;
-//	printexpression.push_back("c_id");
-//	printexpression.push_back("c_d_id");
-//	printexpression.push_back("c_w_id");
-//	printexpression.push_back("c_balance");
+	printexpression.push_back("c_id");
+	printexpression.push_back("c_d_id");
+	printexpression.push_back("c_w_id");
+	printexpression.push_back("c_balance");
 	printexpression.push_back("o_id");
 	printexpression.push_back("o_c_id");
 	printexpression.push_back("o_d_id");
@@ -93,19 +94,19 @@ int main(int argc, char *argv[]){
 	int sum = 0;
 
 	while(!scanner.end){
-
+	ScanOperation scanner1;
 		Dataflow dataflow = scanner.scan(columns);
 		dataflow = SelectOperation::select(dataflow, selectexpression);
 		JoinOperation join;
-		while(!join.end){
-			Dataflow result= join.hashjoin(dataflow, probe, joinexpression);
+		while(!scanner1.end){
+	        Dataflow prob = scanner1.scan(probe);
+			prob = SelectOperation::select(prob, selectexpression1);
+
+			Dataflow result= join.hashjoin(dataflow, prob, joinexpression);
 			sum+=result.size;
 			PrintOperation::print(result, printexpression);
 		}
 	}
-	std::cout << sum<<std::endl;
-
-
 
 /*
 typedef std::tuple<Integer,Integer> key_thashJoin0;
@@ -147,12 +148,11 @@ std::cout << sum<< std::endl;
 
 */
 
-			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
+		std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
 	
-			std::chrono::duration<double> query_duration = std::chrono::duration_cast<std::chrono::duration<double>>(queryfinish-querystart);
+		std::chrono::duration<double> query_duration = std::chrono::duration_cast<std::chrono::duration<double>>(queryfinish-querystart);
 
-			std::cout << "Query time is ";
-			std::cout << query_duration.count() << " seconds" << std::endl;
+		std::cout << "Query time is " << query_duration.count() << " seconds" << std::endl;
 
 	
 

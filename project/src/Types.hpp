@@ -18,7 +18,7 @@ typedef uint64_t Tid;
 template <unsigned size> struct LengthSwitch {};
 template<> struct LengthSwitch<1> { typedef uint8_t type; };
 template<> struct LengthSwitch<2> { typedef uint16_t type; };
-template<> struct LengthSwitch<4> { typedef uint32_t type; };
+template<> struct LengthSwitch<4> { typedef uint64_t type; };
 //---------------------------------------------------------------------------
 template <unsigned maxLen> struct LengthIndicator {
    typedef typename LengthSwitch<(maxLen<256)?1:(maxLen<65536)?2:4>::type type;
@@ -28,10 +28,10 @@ template <unsigned maxLen> struct LengthIndicator {
 class Integer
 {
 public:
-   int32_t value;
+   int64_t value;
 
    Integer() {}
-   Integer(int32_t value) : value(value) {}
+   Integer(int64_t value) : value(value) {}
 
    /// Hash
    inline uint64_t hash() const;
@@ -56,10 +56,10 @@ public:
    /// Mul
    inline Integer operator*(const Integer& n) const { Integer r; r.value=value*n.value; return r; }
    /// Cast
-   static Integer castString(const char* str,uint32_t strLen);
+   static Integer castString(const char* str,uint64_t strLen);
 };
 //---------------------------------------------------------------------------
-inline Integer modulo(Integer x,int32_t y)
+inline Integer modulo(Integer x,int64_t y)
 {
    return Integer(x.value%y);
 }
@@ -100,7 +100,7 @@ public:
    /// Build
    static Varchar build(const char* value) { Varchar result; strncpy(result.value,value,maxLen); result.len=strnlen(value,maxLen); return result; }
    ///Cast
-   static Varchar<maxLen> castString(const char* str,uint32_t strLen) {assert(strLen<=maxLen); Varchar<maxLen> result; result.len=strLen; memcpy(result.value,str,strLen); return result;};
+   static Varchar<maxLen> castString(const char* str,uint64_t strLen) {assert(strLen<=maxLen); Varchar<maxLen> result; result.len=strLen; memcpy(result.value,str,strLen); return result;};
 };
 //---------------------------------------------------------------------------
 template <unsigned maxLen> uint64_t Varchar<maxLen>::hash() const
@@ -165,7 +165,7 @@ public:
    /// Build
    static Char build(const char* value) { Char result; memcpy(result.value,value,maxLen); result.len=strnlen(result.value,maxLen); return result; }
    /// Cast
-   static Char<maxLen> castString(const char* str,uint32_t strLen) {
+   static Char<maxLen> castString(const char* str,uint64_t strLen) {
       while ((*str)==' ') {
          str++;
          strLen--;
@@ -231,7 +231,7 @@ public:
 
    /// Build
    static Char build(const char* value) { Char result; result.value=*value; return result; }
-   static Char<1> castString(const char* str,uint32_t strLen) {
+   static Char<1> castString(const char* str,uint64_t strLen) {
       Char<1> x;
       x.value=str[0];
       return x;
@@ -322,7 +322,7 @@ public:
    /// Build a number
    static Numeric<len,precision> buildRaw(long v) { Numeric r; r.value=v; return r; }
    /// Cast
-   static Numeric<len,precision> castString(const char* str,uint32_t strLen) {
+   static Numeric<len,precision> castString(const char* str,uint64_t strLen) {
       auto iter=str,limit=str+strLen;
 
       // Trim WS
@@ -424,10 +424,10 @@ template <unsigned len,unsigned precision> std::ostream& operator<<(std::ostream
 class Date
 {
    public:
-   int32_t value;
+   int64_t value;
 
    Date() {}
-   Date(int32_t value) : value(value) {}
+   Date(int64_t value) : value(value) {}
 
    /// Hash
    inline uint64_t hash() const;
@@ -444,7 +444,7 @@ class Date
    /// Comparison
    inline bool operator>=(const Date& n) const { return value>=n.value; }
    /// Cast
-   static Date castString(const char* str,uint32_t strLen);
+   static Date castString(const char* str,uint64_t strLen);
 };
 //---------------------------------------------------------------------------
 /// Extract year
@@ -479,7 +479,7 @@ public:
    /// Comparison
    bool operator>(const Timestamp& t) const { return value>t.value; }
    /// Cast
-   static Timestamp castString(const char* str,uint32_t strLen);
+   static Timestamp castString(const char* str,uint64_t strLen);
 };
 //---------------------------------------------------------------------------
 std::ostream& operator<<(std::ostream& out,const Timestamp& value);
