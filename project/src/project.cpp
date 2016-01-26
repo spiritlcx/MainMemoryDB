@@ -11,47 +11,218 @@ Operation *buildTree(Query &query, std::unique_ptr<Schema> &schema){
 		JoinOperation *formerJoin = nullptr;
 		for(unsigned i = 0; i < query.relations.size() - 1; i++){
 			JoinOperation *joinOperation = new JoinOperation();
+			std::string leftTable = query.relations[i];
+			std::string rightTable = query.relations[i+1];
+			
+			for(const std::pair<std::string, std::string> &join : query.joinconditions){
+				if(columnTable[std::get<0>(join)]->name == leftTable && columnTable[std::get<1>(join)]->name == rightTable){
+					joinOperation->expression.push_back(std::make_tuple(std::get<0>(join), std::get<1>(join)));
+				}else if(columnTable[std::get<0>(join)]->name == rightTable && columnTable[std::get<1>(join)]->name == leftTable){
+					joinOperation->expression.push_back(std::make_tuple(std::get<1>(join), std::get<0>(join)));
+				}
+			}
+
 			if(firstjoin){
-				std::string leftTable = query.relations[i];
-				std::string rightTable = query.relations[i+1];
-				for(std::pair<std::string, std::string> select : query.selectconditions){
-					if(columnTable[std::get<0>(select)]->name ==  leftTable){
-						SelectOperation *selectOperation = new SelectOperation();
-						joinOperation->left = selectOperation;
-						ScanOperation *scanOperation = new ScanOperation();
-						selectOperation->left = scanOperation;
-					}else{
-						ScanOperation *scanOperation = new ScanOperation();
-						joinOperation->left = scanOperation;						
+				bool leftFlag = false;
+				bool rightFlag = false;
+				SelectOperation *selectOperationLeft = nullptr;
+				SelectOperation *selectOperationRight = nullptr;
+				for(const std::pair<std::string, std::string> &select : query.selectconditions){
+					if(columnTable[std::get<0>(select)]->name == leftTable){
+						if(!leftFlag){
+							selectOperationLeft = new SelectOperation();
+							joinOperation->left = selectOperationLeft;
+							leftFlag = true;
+						}
+						if(leftFlag){
+							selectOperationLeft->expression.push_back(std::make_tuple("=", std::get<0>(select), std::get<1>(select)));
+						}
 					}
 
-					if(columnTable[std::get<0>(select)]->name ==  rightTable){
-						SelectOperation *selectOperation = new SelectOperation();
-						joinOperation->right = selectOperation;
-						ScanOperation *scanOperation = new ScanOperation();
-						selectOperation->left = scanOperation;		
-					}else{
-						ScanOperation *scanOperation = new ScanOperation();
-						joinOperation->right = scanOperation;
+					if(columnTable[std::get<0>(select)]->name == rightTable){
+						if(!rightFlag){
+							selectOperationRight = new SelectOperation();
+							joinOperation->right = selectOperationRight;
+							rightFlag = true;
+						}
+						if(rightFlag){
+							selectOperationRight->expression.push_back(std::make_tuple("=", std::get<0>(select), std::get<1>(select)));
+						}
 					}
 				}
+
+				ScanOperation *scanOperationLeft = new ScanOperation();
+				for(const std::string &selectname : query.selectnames){
+					if(columnTable[selectname]->name != leftTable)
+						continue;
+					if(std::find(scanOperationLeft->columns.begin(), scanOperationLeft->columns.end(), selectname) != scanOperationLeft->columns.end())
+						continue;
+					scanOperationLeft->columns.push_back(selectname);
+				}
+				for(const std::pair<std::string, std::string> &select : query.selectconditions){
+					if(columnTable[std::get<0>(select)]->name != leftTable)
+						continue;
+					if(std::find(scanOperationLeft->columns.begin(), scanOperationLeft->columns.end(), std::get<0>(select)) != scanOperationLeft->columns.end())
+						continue;
+					scanOperationLeft->columns.push_back(std::get<0>(select));
+				}
+				for(const std::pair<std::string, std::string> &join : query.joinconditions){
+					if(columnTable[std::get<0>(join)]->name == leftTable){
+						if(std::find(scanOperationLeft->columns.begin(), scanOperationLeft->columns.end(), std::get<0>(join)) != scanOperationLeft->columns.end())
+							continue;
+						scanOperationLeft->columns.push_back(std::get<0>(join));
+					}
+					if(columnTable[std::get<1>(join)]->name == leftTable){
+						if(std::find(scanOperationLeft->columns.begin(), scanOperationLeft->columns.end(), std::get<1>(join)) != scanOperationLeft->columns.end())
+							continue;
+						scanOperationLeft->columns.push_back(std::get<1>(join));
+					}
+				}
+
+				if(!leftFlag){
+					joinOperation->left = scanOperationLeft;
+				}else{
+					selectOperationLeft->left = scanOperationLeft;
+				}
+
+
+				ScanOperation *scanOperationRight = new ScanOperation();
+
+				for(const std::string &selectname : query.selectnames){
+					if(columnTable[selectname]->name != rightTable)
+						continue;
+					if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), selectname) != scanOperationRight->columns.end())
+						continue;
+					scanOperationRight->columns.push_back(selectname);
+				}
+				for(const std::pair<std::string, std::string> &select : query.selectconditions){
+					if(columnTable[std::get<0>(select)]->name != rightTable)
+						continue;
+					if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), std::get<0>(select)) != scanOperationRight->columns.end())
+						continue;
+					scanOperationRight->columns.push_back(std::get<0>(select));
+				}
+
+				for(const std::pair<std::string, std::string> &join : query.joinconditions){
+
+					if(columnTable[std::get<0>(join)]->name == rightTable){
+						if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), std::get<0>(join)) != scanOperationRight->columns.end())
+							continue;
+						scanOperationRight->columns.push_back(std::get<0>(join));
+					}
+
+					if(columnTable[std::get<1>(join)]->name == rightTable){
+						if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), std::get<1>(join)) != scanOperationRight->columns.end())
+							continue;
+						scanOperationRight->columns.push_back(std::get<1>(join));
+					}
+				}
+
+				if(!rightFlag){
+					joinOperation->right = scanOperationRight;
+				}else{
+					selectOperationRight->left = scanOperationRight;
+				}
+
 				firstjoin = false;
 			}else{
+				bool rightFlag = false;
+				SelectOperation *selectOperation = nullptr;
 				joinOperation->left = formerJoin;
-				std::string rightTable = query.relations[i+1];
-				for(std::pair<std::string, std::string> select : query.selectconditions){
+				for(const std::pair<std::string, std::string> &select : query.selectconditions){
 					if(columnTable[std::get<0>(select)]->name ==  rightTable){
-						SelectOperation *selectOperation = new SelectOperation();
-						joinOperation->right = selectOperation;
+						if(!rightFlag){
+							selectOperation = new SelectOperation();
+							joinOperation->right = selectOperation;
+							rightFlag = true;
+						}
+						if(rightFlag){
+							selectOperation->expression.push_back(std::make_tuple("=", std::get<0>(select), std::get<1>(select)));
+						}
 					}
-				}	
+				}
+
+				ScanOperation *scanOperationRight = new ScanOperation();
+
+				for(const std::string &selectname : query.selectnames){
+					if(columnTable[selectname]->name != rightTable)
+						continue;
+					if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), selectname) != scanOperationRight->columns.end())
+						continue;
+
+					scanOperationRight->columns.push_back(selectname);
+				}
+				for(const std::pair<std::string, std::string> &select : query.selectconditions){
+					if(columnTable[std::get<0>(select)]->name != rightTable)
+						continue;
+					if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), std::get<0>(select)) != scanOperationRight->columns.end())
+						continue;
+					scanOperationRight->columns.push_back(std::get<0>(select));
+				}
+
+				for(const std::pair<std::string, std::string> &join : query.joinconditions){
+
+					if(columnTable[std::get<0>(join)]->name == rightTable){
+						joinOperation->left->push_back(std::get<1>(join));
+						if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), std::get<0>(join)) != scanOperationRight->columns.end())
+							continue;
+						scanOperationRight->columns.push_back(std::get<0>(join));
+					}
+
+					if(columnTable[std::get<1>(join)]->name == rightTable){
+						joinOperation->left->push_back(std::get<0>(join));
+						if(std::find(scanOperationRight->columns.begin(), scanOperationRight->columns.end(), std::get<1>(join)) != scanOperationRight->columns.end())
+							continue;
+						scanOperationRight->columns.push_back(std::get<1>(join));
+					}
+				}
+
+				if(!rightFlag){
+					joinOperation->right = scanOperationRight;						
+				}else{
+					selectOperation->left = scanOperationRight;
+				}
 			}
 			formerJoin = joinOperation;
 			printOperation->left = formerJoin;
 		}
+
+		for(const std::string &selectname : query.selectnames){
+			printOperation->columns.push_back(selectname);	
+			printOperation->left->push_back(selectname);
+		}
+
 		return printOperation;
 	}else{
-		//TODO
+		std::string leftTable = query.relations[0];
+		SelectOperation *selectOperation = nullptr;
+		bool selectionFlag = false;
+		for(const std::pair<std::string, std::string> &select : query.selectconditions){
+			if(columnTable[std::get<0>(select)]->name ==  leftTable){
+				if(!selectionFlag){
+					selectOperation = new SelectOperation();
+					printOperation->left = selectOperation;
+					selectionFlag = true;
+				}
+				if(selectionFlag){
+					selectOperation->expression.push_back(std::make_tuple("=", std::get<0>(select), std::get<1>(select)));
+				}
+			}
+		}
+		ScanOperation *scanOperation = new ScanOperation();
+		for(const std::string &selectname : query.selectnames){
+			scanOperation->columns.push_back(selectname);
+			printOperation->columns.push_back(selectname);
+		}
+		for(const std::pair<std::string, std::string> &select : query.selectconditions){
+			scanOperation->columns.push_back(std::get<0>(select));
+		}
+		if(!selectionFlag){
+			printOperation->left = scanOperation;						
+		}else{
+			selectOperation->left = scanOperation;	
+		}
+
 		return printOperation;
 	}
 	return printOperation;
@@ -68,19 +239,19 @@ int main(int argc, char *argv[]){
 	relationTable.insert({"order",order});
 
 	Orderline *orderline = new Orderline();
-//	Warehouse *warehouse = new Warehouse();
-//	District *district = new District();
-//	Item *item = new Item();
+	Warehouse *warehouse = new Warehouse();
+	District *district = new District();
+	Item *item = new Item();
 
 	orderline->init();
-//	warehouse->init();
-//	district->init();
-//	item->init();
+	warehouse->init();
+	district->init();
+	item->init();
 
 	relationTable.insert({"orderline",orderline});
-//	relationTable.insert({"warehouse",warehouse});
-//	relationTable.insert({"district",district});
-//	relationTable.insert({"item",item});
+	relationTable.insert({"warehouse",warehouse});
+	relationTable.insert({"district",district});
+	relationTable.insert({"item",item});
 
 
 	QueryParser queryParser;
@@ -155,8 +326,13 @@ std::cout << sum<< std::endl;
 			semantic.setQuery(query);
 			semantic.analysis(relations);
 			
-			buildTree(query, semantic.schema);
+			
+			Operation *operation = buildTree(query, semantic.schema);
 
+			std::chrono::high_resolution_clock::time_point querystart = std::chrono::high_resolution_clock::now();
+
+			operation->execute();
+/*			
 			ScanOperation scanner;
 
 			std::vector<std::string> columns;
@@ -165,8 +341,6 @@ std::cout << sum<< std::endl;
 			columns.push_back("c_w_id");
 			columns.push_back("c_balance");
 	
-			std::chrono::high_resolution_clock::time_point querystart = std::chrono::high_resolution_clock::now();
-
 			std::vector<std::tuple<std::string,std::string,std::string>> selectexpression;
 			selectexpression.push_back(std::make_tuple("=", "c_id", "5"));
 			selectexpression.push_back(std::make_tuple("=", "c_d_id", "5"));
@@ -207,6 +381,8 @@ std::cout << sum<< std::endl;
 					PrintOperation::print(result, printexpression);
 				}
 			}
+*/
+
 
 			std::chrono::high_resolution_clock::time_point queryfinish = std::chrono::high_resolution_clock::now();
 	
