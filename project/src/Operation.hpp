@@ -6,7 +6,7 @@
 #include <string>
 
 #define LEN 32
-#define N 8000
+#define N 160000
 //relation name and relation object
 std::unordered_map<std::string, Schema::Relation> relations;
 //attribute name and attribute object
@@ -163,7 +163,7 @@ public:
 	}
 	Dataflow *select(Dataflow *dataflow, std::vector<std::tuple<std::string, std::string, std::string>> expression){
 		int size = dataflow->size;
-		for(std::tuple<std::string, std::string, std::string> exp : expression){
+		for(const std::tuple<std::string, std::string, std::string> &exp : expression){
 			if(std::get<0>(exp) == "="){
 				switch(attributes[std::get<1>(exp)].type){
 					case Types::Tag::Integer:
@@ -211,16 +211,18 @@ struct HashTable{
 			values[i] = nullptr;
 		}
 	}
-/*
+
 	~HashTable(){
 		for(unsigned i = 0; i < colorder.size(); i++){
 			if(values[i] != nullptr)
 				delete [] (Integer*)values[i];
 		}
-		delete [] first;
-		delete [] next;
+		if(first != nullptr)
+			delete [] first;
+		if(next != nullptr)
+			delete [] next;
 	}
-*/	
+	
 };
 
 void hash(int *select, int *hashValue, Integer *key, int size){
@@ -339,15 +341,6 @@ public:
 			newPhase = true;
 			built = false;
 			M = 0;
-
-//			for(unsigned i = 0; i < hashTable.colorder.size(); i++){
-//				if(hashTable.values[i] != nullptr)
-//					delete [] (Integer*)hashTable.values[i];
-//			}
-//			if(hashTable.first != nullptr)
-//				delete [] hashTable.first;
-//			if(hashTable.next != nullptr)
-//				delete [] hashTable.next;
 		}
 
 		if(newPhase){
@@ -382,7 +375,11 @@ public:
 
 		if(!built){
 			built = true;
+			if(hashTable.first != nullptr)
+				delete [] hashTable.first;
 			hashTable.first = new int[dataflow->size];
+			if(hashTable.next != nullptr)
+				delete [] hashTable.next;
 			hashTable.next = new int[dataflow->size+1];
 			memset(hashTable.first, 0, dataflow->size*sizeof(int));
 			memset(hashTable.next, 0, (dataflow->size+1)*sizeof(int));
@@ -399,6 +396,9 @@ public:
 			hashTableInsert(dataflow->select, groupId, hashTable, hashValue, dataflow->size);
 			delete [] hashValue;
 			for(const std::tuple<std::string, std::string> &exp: expression){
+				if(hashTable.values[M] != nullptr)
+					delete [] (Integer*)hashTable.values[M];
+
 				hashTable.values[M] = new Integer[dataflow->size+1];	
 				hashTable.colorder.push_back(std::get<0>(exp));
 
@@ -409,6 +409,10 @@ public:
 			for(const std::string &column : dataflow->colorder){
 				if(std::find(hashTable.colorder.begin(), hashTable.colorder.end(),column) != hashTable.colorder.end())
 					continue;
+
+				if(hashTable.values[M] != nullptr)
+					delete [] (Integer*)hashTable.values[M];
+
 				hashTable.values[M] = new Integer[dataflow->size+1];
 				hashTable.colorder.push_back(column);
 
@@ -559,17 +563,17 @@ class PrintOperation : public Operation{
 public:
 	std::vector<std::string> columns;
 	virtual Dataflow *execute(){
-		int ss = 0;
+		int count = 0;
 		while(!end){
 			Dataflow *dataflow = left->execute();
 			print(dataflow, columns);
 			end = left->end;
-			ss+=dataflow->size;
+			count+=dataflow->size;
 
 			delete dataflow;
 		}
 
-std::cout << ss<<std::endl;
+		std::cout <<"Number of results: "<< count <<std::endl;
 
 		return nullptr;
 	}
