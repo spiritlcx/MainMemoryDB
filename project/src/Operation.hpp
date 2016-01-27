@@ -6,8 +6,7 @@
 #include <string>
 
 #define LEN 32
-#define N 1500000
-
+#define N 8000
 //relation name and relation object
 std::unordered_map<std::string, Schema::Relation> relations;
 //attribute name and attribute object
@@ -23,16 +22,21 @@ struct Dataflow{
 	std::vector<std::string> colorder;
 	std::unordered_map<std::string, Schema::Relation::Attribute> colattribute;
 	~Dataflow(){
-		if(!flag)
+		if(select != nullptr){
+			delete [] select;
+		}
+
+		if(name != "join")
 			return;
 		for(std::string col : colorder){
 			delete [] (Integer*)data[col];
 		}
-		delete [] select;
 	}	
+	
 	int size;
-	int *select;
+	int *select = nullptr;
 	bool flag = false;
+	std::string name = "";
 };
 
 int scan_column(Table *table, void** result, std::string column, int size, int offset){
@@ -44,7 +48,11 @@ public:
 	std::string name;
 	Operation *left = nullptr;
 	Operation *right = nullptr;
-	virtual Dataflow execute() = 0;
+	virtual Dataflow *execute() = 0;
+	virtual void refresh(){
+	
+	}
+	bool end = false;
 	std::vector<std::string> usefulcolumn;
 	void push_back(std::string column){
 		usefulcolumn.push_back(column);
@@ -59,38 +67,45 @@ public:
 class ScanOperation : public Operation{
 //scan the only needed columns
 public:
+	int offset = 0;
 	std::vector<std::string> columns;
-	virtual Dataflow execute(){
+	virtual void refresh(){
+		offset = 0;
+		end = false;
+	}
+	virtual Dataflow *execute(){
 		return scan(columns);
 	}
-	Dataflow scan(std::vector<std::string> columns){
-		struct Dataflow dataflow;
-		int size = 0;
-		dataflow.select = new int[N];
+	
+	Dataflow *scan(std::vector<std::string> columns){
+		struct Dataflow *dataflow = new Dataflow();
+		int remain = 0;
+		dataflow->select = new int[N];
 		for(int i = 0; i < N; i++){
-			dataflow.select[i]=i;
+			dataflow->select[i]=i;
 		}
-
+	
 		for(std::string column : columns){	
 			Schema::Relation::Attribute &attribute = attributes[column];
-			dataflow.colorder.push_back(column);
-			dataflow.colattribute.insert({column, attribute});
-
+			dataflow->colorder.push_back(column);
+			dataflow->colattribute.insert({column, attribute});
+	
 			void *result = nullptr;
-			size = scan_column(columnTable[column], (void **)&result, column, N, offset);
-
-			dataflow.data.insert({column,result});
+			remain = scan_column(columnTable[column], (void **)&result, column, N, offset);
+	
+			dataflow->data.insert({column,result});
+		}
+	
+		offset += N;
+		if(remain > 0){
+			dataflow->size = N;
+		}else{
+			dataflow->size = N + remain;
+			end = true;
 		}
 
-		offset += N;
-		dataflow.size = size;
-		if(size < N)
-			end = true;
 	return dataflow;
 	}
-
-	int offset = 0;
-	bool end = false;
 };
 
 int select_equal_Integer(int *output, Integer *input, int value, int size){
@@ -138,21 +153,25 @@ int select_smaller_Integer(int *output, Integer *input, int value, int size){
 class SelectOperation : public Operation{
 public:
 	std::vector<std::tuple<std::string, std::string, std::string>> expression;
-	virtual Dataflow execute(){
-		Dataflow dataflow = left->execute();
+	virtual void refresh(){
+		left->refresh();
+	}
+	virtual Dataflow *execute(){
+		Dataflow *dataflow = left->execute();
+		end = left->end;
 		return select(dataflow, expression);
 	}
-	static Dataflow select(Dataflow &dataflow, std::vector<std::tuple<std::string, std::string, std::string>> expression){
-		int size = dataflow.size;
+	Dataflow *select(Dataflow *dataflow, std::vector<std::tuple<std::string, std::string, std::string>> expression){
+		int size = dataflow->size;
 		for(std::tuple<std::string, std::string, std::string> exp : expression){
 			if(std::get<0>(exp) == "="){
 				switch(attributes[std::get<1>(exp)].type){
 					case Types::Tag::Integer:
-						size = select_equal_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_equal_Integer(dataflow->select, (Integer*)dataflow->data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 
 					case Types::Tag::Numeric:
-						size = select_equal_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_equal_Integer(dataflow->select, (Integer*)dataflow->data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 					default:
 						break;
@@ -161,7 +180,7 @@ public:
 
 				switch(attributes[std::get<1>(exp)].type){
 					case Types::Tag::Integer:
-						size = select_smaller_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_smaller_Integer(dataflow->select, (Integer*)dataflow->data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 					default:
 						break;
@@ -169,7 +188,7 @@ public:
 			}else if(std::get<0>(exp) == ">"){
 				switch(attributes[std::get<1>(exp)].type){
 					case Types::Tag::Integer:
-						size = select_bigger_Integer(dataflow.select, (Integer*)dataflow.data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
+						size = select_bigger_Integer(dataflow->select, (Integer*)dataflow->data[std::get<1>(exp)],std::stoi(std::get<2>(exp)),size);
 						break;
 					default:
 						break;
@@ -177,25 +196,31 @@ public:
 			}
 		}
 
-		dataflow.size = size;
+		dataflow->size = size;
 		return dataflow;
 	}
 };
 
 struct HashTable{
-	int *first;
-	int *next;
-	void *values[100];
+	int *first = nullptr;
+	int *next = nullptr;
+	void *values[20];
 	std::vector<std::string> colorder;
+	HashTable(){
+		for(int i = 0;i < 20; i++){
+			values[i] = nullptr;
+		}
+	}
 /*
 	~HashTable(){
 		for(unsigned i = 0; i < colorder.size(); i++){
-			delete [] (Integer*)values[i];
+			if(values[i] != nullptr)
+				delete [] (Integer*)values[i];
 		}
 		delete [] first;
 		delete [] next;
 	}
-	*/
+*/	
 };
 
 void hash(int *select, int *hashValue, Integer *key, int size){
@@ -247,10 +272,6 @@ int lookupInitial(int *toCheck, int *pgroupId, int *first, int *hashValue, int s
 void check(int *select, int *differ, int *toCheck, int *groupId, int *rgroupId, int *sgroupId, Integer *value, Integer *probekey, int m){
 	for(int i = 0; i < m; i++){
 		int index = groupId[toCheck[i]];
-		if(m==49653){
-			std::cout << "index:"<<index<<std::endl;
-			std::cout << toCheck[i]<<std::endl;
-		}
 		if(probekey[select[toCheck[i]]] != value[index]){
 			differ[toCheck[i]] = 1;
 		}
@@ -300,99 +321,137 @@ int gather(int *select, int *toAssign, Integer *newvalue, Integer *value, int *g
 
 class JoinOperation : public Operation{
 public:
-	bool initial = true;
 	bool built = false;
+	bool newPhase = true;
 	HashTable hashTable;
-	bool end = false;
+	Dataflow *leftData = nullptr;
+	Dataflow *rightData = nullptr;
 	unsigned M = 0;
+
+	int sum = 0;
+	int rightsum = 0;
+
 	std::vector<std::tuple<std::string, std::string>> expression;
-	virtual Dataflow execute(){
-		Dataflow leftData = left->execute();
-		Dataflow rightData = right->execute();
+	virtual Dataflow *execute(){
+
+		if(right->end){
+			right->refresh();
+			newPhase = true;
+			built = false;
+			M = 0;
+
+//			for(unsigned i = 0; i < hashTable.colorder.size(); i++){
+//				if(hashTable.values[i] != nullptr)
+//					delete [] (Integer*)hashTable.values[i];
+//			}
+//			if(hashTable.first != nullptr)
+//				delete [] hashTable.first;
+//			if(hashTable.next != nullptr)
+//				delete [] hashTable.next;
+		}
+
+		if(newPhase){
+			newPhase = false;
+			if(leftData != nullptr)
+				delete leftData;
+			leftData = left->execute();
+			sum += leftData->size;
+			if(leftData->size == 0){
+				newPhase = true;
+				if(left->end)
+					end = true;
+				return new Dataflow();
+			}
+		}
+		if(rightData != nullptr){
+			delete rightData;
+		}
+		rightData = right->execute();
+
+		rightsum += rightData->size;
+
+		if(left->end && right->end){
+			end = true;	
+		}
+
+		if(rightData->size == 0)
+			return new Dataflow();
 		return hashjoin(leftData, rightData, expression);
 	}
-	Dataflow hashjoin(Dataflow &dataflow, Dataflow &prob, std::vector<std::tuple<std::string, std::string>> expression){
+	Dataflow *hashjoin(Dataflow *dataflow, Dataflow *prob, std::vector<std::tuple<std::string, std::string>> expression){
 
 		if(!built){
-
 			built = true;
-			hashTable.first = new int[dataflow.size];
-			hashTable.next = new int[dataflow.size+1];
-			memset(hashTable.first, 0, dataflow.size*sizeof(int));
-			memset(hashTable.next, 0, (dataflow.size+1)*sizeof(int));
-			int *hashValue = new int[dataflow.size];
+			hashTable.first = new int[dataflow->size];
+			hashTable.next = new int[dataflow->size+1];
+			memset(hashTable.first, 0, dataflow->size*sizeof(int));
+			memset(hashTable.next, 0, (dataflow->size+1)*sizeof(int));
+			int *hashValue = new int[dataflow->size];
 
-			memset(hashValue, 0, dataflow.size*sizeof(int));
+			memset(hashValue, 0, dataflow->size*sizeof(int));
 
 			for(const std::tuple<std::string, std::string> &exp: expression){
-				hash(dataflow.select, hashValue, (Integer*)dataflow.data[std::get<0>(exp)], dataflow.size);
+				hash(dataflow->select, hashValue, (Integer*)dataflow->data[std::get<0>(exp)], dataflow->size);
 			}
 
-			bucket(hashValue, dataflow.size, dataflow.size);
-			int *groupId = new int[dataflow.size];
-			std::cout <<"change:"<< hashTable.first[212]<<std::endl;
-			hashTableInsert(dataflow.select, groupId, hashTable, hashValue, dataflow.size);
+			bucket(hashValue, dataflow->size, dataflow->size);
+			int *groupId = new int[dataflow->size];
+			hashTableInsert(dataflow->select, groupId, hashTable, hashValue, dataflow->size);
 			delete [] hashValue;
 			for(const std::tuple<std::string, std::string> &exp: expression){
-				hashTable.values[M] = new Integer[dataflow.size+1];	
+				hashTable.values[M] = new Integer[dataflow->size+1];	
 				hashTable.colorder.push_back(std::get<0>(exp));
 
-				spread_Integer(dataflow.select, (Integer*)hashTable.values[M], groupId, (Integer*)dataflow.data[std::get<0>(exp)], dataflow.size);
+				spread_Integer(dataflow->select, (Integer*)hashTable.values[M], groupId, (Integer*)dataflow->data[std::get<0>(exp)], dataflow->size);
 				M++;
 			}
 
-			for(const std::string &column : dataflow.colorder){
+			for(const std::string &column : dataflow->colorder){
 				if(std::find(hashTable.colorder.begin(), hashTable.colorder.end(),column) != hashTable.colorder.end())
 					continue;
-				hashTable.values[M] = new Integer[dataflow.size+1];
+				hashTable.values[M] = new Integer[dataflow->size+1];
 				hashTable.colorder.push_back(column);
 
-				spread_Integer(dataflow.select, (Integer*)hashTable.values[M], groupId, (Integer*)dataflow.data[column], dataflow.size);
+				spread_Integer(dataflow->select, (Integer*)hashTable.values[M], groupId, (Integer*)dataflow->data[column], dataflow->size);
 				M++;
 
 			}
 			delete [] groupId;
 		}
 
-		int probsize = prob.size;
-		Dataflow result;
-		result.flag = true;
+		int probsize = prob->size;
+		Dataflow *result = new Dataflow();
+		result->name = "join";
+		result->flag = true;
 		if(probsize == 0){
 			return result;
 		}
-
 		int probehashValue[probsize];
 		memset(probehashValue, 0, probsize*sizeof(int));
 		
 		for(const std::tuple<std::string, std::string> &exp : expression){
 	//std::cout << std::get<1>(exp)<<std::endl;
 
-			hash(prob.select, probehashValue, (Integer*)prob.data[std::get<1>(exp)], probsize);
+			hash(prob->select, probehashValue, (Integer*)prob->data[std::get<1>(exp)], probsize);
 		}
 
-		bucket(probehashValue, probsize, dataflow.size);
-
+		bucket(probehashValue, probsize, dataflow->size);
 		int pgroupId[probsize];
 		int rgroupId[probsize];
-		int *sgroupId = new int[dataflow.size+1];
+		int *sgroupId = new int[dataflow->size+1];
 		memset(pgroupId, 0, probsize*sizeof(int));
 		memset(rgroupId, 0, probsize*sizeof(int));
-		memset(sgroupId, 0, (dataflow.size+1)*sizeof(int));
-	
+		memset(sgroupId, 0, (dataflow->size+1)*sizeof(int));
 		int toCheck[probsize];
 		for(int i = 0; i < probsize; i++)
 			toCheck[i] = i;
-		std::cout <<"before:"<< pgroupId[211]<<std::endl;
-
-
 		int m =	lookupInitial(toCheck, pgroupId, hashTable.first, probehashValue, probsize);
-		std::cout << pgroupId[211]<<std::endl;
 		while(m > 0){
 			int differ[probsize];
 			memset(differ, 0, probsize*sizeof(int));
 			int i = 0;
 			for(const std::tuple<std::string, std::string> &exp: expression){
-				check(prob.select, differ, toCheck, pgroupId, rgroupId, sgroupId, (Integer*)hashTable.values[i], (Integer*)prob.data[std::get<1>(exp)], m);
+				check(prob->select, differ, toCheck, pgroupId, rgroupId, sgroupId, (Integer*)hashTable.values[i], (Integer*)prob->data[std::get<1>(exp)], m);
 				i++;
 			}
 			build(differ, toCheck, pgroupId, rgroupId, sgroupId, m);
@@ -413,18 +472,16 @@ public:
 				}
 			}
 		}
-
-		result.size = count;
+		result->size = count;
 		if(count==0)
 			return result;
 
-		result.select = new int[count];
+		result->select = new int[count];
 		for(int i = 0; i < count; i++){
-			result.select[i] = i;
+			result->select[i] = i;
 		}
-
-		for(unsigned j = 0; j < prob.colorder.size(); j++){
-			std::string column = prob.colorder[j];	
+		for(unsigned j = 0; j < prob->colorder.size(); j++){
+			std::string column = prob->colorder[j];	
 			if(std::find(usefulcolumn.begin(), usefulcolumn.end(), column) == usefulcolumn.end())
 				continue;
 
@@ -440,25 +497,24 @@ public:
 			int tgroupId[probsize];
 			for(int i = 0; i < probsize; i++)
 				tgroupId[i] = rgroupId[i];
-			Integer* value = (Integer*)prob.data[column];
+			Integer* value = (Integer*)prob->data[column];
 			Integer* newvalue = new Integer[count];
 			int index = 0;
-			gather(prob.select, toAssign, newvalue, value, index, matchnum);
+			gather(prob->select, toAssign, newvalue, value, index, matchnum);
 			index += matchnum;
 			while(matchnum > 0){
 				matchnum = selectMisses(toAssign, tgroupId, sgroupId, matchnum);
 				findNext(toAssign, sgroupId, tgroupId, matchnum);
-				gather(prob.select, toAssign, newvalue, value, index, matchnum);
+				gather(prob->select, toAssign, newvalue, value, index, matchnum);
 				index += matchnum;
 			}
 
-			result.colattribute.insert({column, prob.colattribute[column]});
-			result.data.insert({column, newvalue});
-			result.colorder.push_back(column);
+			result->colattribute.insert({column, prob->colattribute[column]});
+			result->data.insert({column, newvalue});
+			result->colorder.push_back(column);
 		}
-
-		for(unsigned j = 0; j < dataflow.colorder.size(); j++){
-			std::string column = dataflow.colorder[j];
+		for(unsigned j = 0; j < dataflow->colorder.size(); j++){
+			std::string column = dataflow->colorder[j];
 			
 			if(std::find(usefulcolumn.begin(), usefulcolumn.end(), column) == usefulcolumn.end())
 				continue;
@@ -479,19 +535,19 @@ public:
 			Integer* value = (Integer*)hashTable.values[j];
 			Integer* newvalue = new Integer[count];
 			int index = 0;
-			gather(prob.select, toAssign, newvalue, value, tgroupId, index, matchnum);
+			gather(prob->select, toAssign, newvalue, value, tgroupId, index, matchnum);
 			index += matchnum;
 
 			while(matchnum > 0){
 				matchnum = selectMisses(toAssign, tgroupId, sgroupId, matchnum);
 				findNext(toAssign, sgroupId, tgroupId, matchnum);
-				gather(prob.select, toAssign, newvalue, value, tgroupId, index, matchnum);
+				gather(prob->select, toAssign, newvalue, value, tgroupId, index, matchnum);
 				index += matchnum;
 			}
 
-			result.colattribute.insert({column, dataflow.colattribute[column]});
-			result.data.insert({column, newvalue});
-			result.colorder.push_back(column);
+			result->colattribute.insert({column, dataflow->colattribute[column]});
+			result->data.insert({column, newvalue});
+			result->colorder.push_back(column);
 		}
 
 		delete [] sgroupId;
@@ -502,74 +558,84 @@ public:
 class PrintOperation : public Operation{
 public:
 	std::vector<std::string> columns;
-	virtual Dataflow execute(){
-		Dataflow dataflow = left->execute();
-		print(dataflow, columns);
-		return dataflow;
+	virtual Dataflow *execute(){
+		int ss = 0;
+		while(!end){
+			Dataflow *dataflow = left->execute();
+			print(dataflow, columns);
+			end = left->end;
+			ss+=dataflow->size;
+
+			delete dataflow;
+		}
+
+std::cout << ss<<std::endl;
+
+		return nullptr;
 	}
-	static void print(Dataflow &dataflow, std::vector<std::string> &columns){
-		for(int i = 0; i < dataflow.size; i++){
+	void print(Dataflow *dataflow, std::vector<std::string> &columns){
+		for(int i = 0; i < dataflow->size; i++){
 			for(std::string column : columns){
-				const Schema::Relation::Attribute &attribute = dataflow.colattribute[column];
+				const Schema::Relation::Attribute &attribute = dataflow->colattribute[column];
 				switch(attribute.type){
 				case Types::Tag::Integer:
-					std::cout << *((Integer*)dataflow.data[column]+dataflow.select[i]) << " ";
+					std::cout << *((Integer*)dataflow->data[column]+dataflow->select[i]) << " ";
 					break;
 				case Types::Tag::Numeric:
 					switch(attribute.len2){
 						case 1:
-						std::cout << *((Numeric<LEN, 1>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 1>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 2:
-						std::cout << *((Numeric<LEN, 2>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 2>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 3:
-						std::cout << *((Numeric<LEN, 3>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 3>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 4:
-						std::cout << *((Numeric<LEN, 4>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 4>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 5:
-						std::cout << *((Numeric<LEN, 5>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 5>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 6:
-						std::cout << *((Numeric<LEN, 6>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 6>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 7:
-						std::cout << *((Numeric<LEN, 7>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 7>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 8:
-						std::cout << *((Numeric<LEN, 8>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 8>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 9:
-						std::cout << *((Numeric<LEN, 9>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 9>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 10:
-						std::cout << *((Numeric<LEN, 10>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 10>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 11:
-						std::cout << *((Numeric<LEN, 11>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 11>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 12:
-						std::cout << *((Numeric<LEN, 12>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 12>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 13:
-						std::cout << *((Numeric<LEN, 13>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 13>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 14:
-						std::cout << *((Numeric<LEN, 14>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 14>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 15:
-						std::cout << *((Numeric<LEN, 15>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 15>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 16:
-						std::cout << *((Numeric<LEN, 16>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 16>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 17:
-						std::cout << *((Numeric<LEN, 17>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 17>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						case 18:
-						std::cout << *((Numeric<LEN, 18>*)dataflow.data[column]+dataflow.select[i]) << " ";
+						std::cout << *((Numeric<LEN, 18>*)dataflow->data[column]+dataflow->select[i]) << " ";
 							break;
 						default:
 							break;

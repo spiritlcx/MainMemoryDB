@@ -114,7 +114,7 @@ struct Customer : Table{
 	
 
 	virtual int getColumn(void** result, std::string column, int size, int offset){
-		int remain = c_id.size() - offset;
+		int remain = c_id.size() - offset - size;
 		if(column == "c_id"){
 			*result = &c_id[offset];
 		}else if(column == "c_d_id"){
@@ -125,10 +125,7 @@ struct Customer : Table{
 			*result = &c_balance[offset];
 		}
 		
-		if(size < remain)
-			return size;
-		else
-			return remain;
+		return remain;
 	}
 
 	void init(){
@@ -213,7 +210,7 @@ struct Order : Table{
 	}
 
 	virtual int getColumn(void** result, std::string column , int size, int offset){
-		int remain = o_id.size() - offset;
+		int remain = o_id.size() - offset - size;
 		if(column == "o_id"){
 			*result = &o_id[offset];
 		}else if(column == "o_d_id"){
@@ -224,10 +221,8 @@ struct Order : Table{
 			*result = &o_c_id[offset];
 		}		
 		
-		if(size < remain)
-			return size;
-		else
-			return remain;
+		return remain;
+	
 	}	
 
 
@@ -289,7 +284,7 @@ struct Orderline : Table{
 	std::vector<Char<24>> ol_dist_info;
 
 	virtual int getColumn(void** result, std::string column , int size, int offset){
-		int remain = ol_o_id.size() - offset;
+		int remain = ol_o_id.size() - offset - size;
 		if(column == "ol_o_id"){
 			*result = &ol_o_id[offset];
 		}else if(column == "ol_d_id"){
@@ -298,12 +293,12 @@ struct Orderline : Table{
 			*result = &ol_w_id[offset];
 		}else if(column == "ol_number"){
 			*result = &ol_number[offset];
-		}		
+		}else if(column == "ol_i_id"){
+			*result = &ol_i_id[offset];
+		}
 		
-		if(size < remain)
-			return size;
-		else
-			return remain;
+		return remain;
+	
 	}	
 	
 
@@ -344,34 +339,38 @@ struct Orderline : Table{
 
 struct District : Table{
 	District() {name="district";}
-	struct Row{
-		Integer d_id;
-		Integer d_w_id;
-		Varchar<10> d_name;
-		Varchar<20> d_street_1;
-		Varchar<20> d_street_2;
-		Varchar<20> d_city;
-		Char<2> d_state;
-		Char<9> d_zip;
-		Numeric<4,4> d_tax;
-		Numeric<12,2> d_ytd;
-		Integer d_next_o_id;
-	};
 
-	std::vector<Row> districts;
-	std::vector<unsigned> primaryKey;
+	std::vector<Integer> d_id;
+	std::vector<Integer> d_w_id;
+	std::vector<Varchar<10>> d_name;
+	std::vector<Varchar<20>> d_street_1;
+	std::vector<Varchar<20>> d_street_2;
+	std::vector<Varchar<20>> d_city;
+	std::vector<Char<2>> d_state;
+	std::vector<Char<9>> d_zip;
+	std::vector<Numeric<4,4>> d_tax;
+	std::vector<Numeric<12,2>> d_ytd;
+	std::vector<Integer> d_next_o_id;
 
-	unsigned size(){return districts.size();}
-
-	Row operator [](const int& i) const {return districts[i];}
-
-	std::vector<Row> getAll(){
-		return districts;
+	virtual int getColumn(void** result, std::string column, int size, int offset){
+		int remain = d_id.size() - offset - size;
+		if(column == "d_id"){
+			*result = &d_id[offset];
+		}else if(column == "d_w_id"){
+			*result = &d_w_id[offset];
+		}else if(column == "d_tax"){
+			*result = &d_tax[offset];
+		}else if(column == "d_ytd"){
+			*result = &d_ytd[offset];
+		}else if(column == "d_next_o_id"){
+			*result = &d_next_o_id;
+		}
+		
+		return remain;
+	
 	}
 
 	void init(){
-		primaryKey.push_back(1);
-		primaryKey.push_back(0);
 
 		attributes.push_back(Attribute("d_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("d_w_id",Types::Tag::Integer, 0, 0, 0));
@@ -391,65 +390,50 @@ struct District : Table{
 
 		while(!f.eof() && f >> line){
 			std::vector<std::string> data = split(line, '|');
-			Row row;
-			row.d_id =Integer::castString(data[0].c_str(), data[0].length());
-			row.d_w_id =Integer::castString(data[1].c_str(), data[1].length());
-			row.d_name =Varchar<10>::castString(data[2].c_str(), data[2].length());
-			row.d_street_1 =Varchar<20>::castString(data[3].c_str(), data[3].length());
-			row.d_street_2 =Varchar<20>::castString(data[4].c_str(), data[4].length());
-			row.d_city =Varchar<20>::castString(data[5].c_str(), data[5].length());
-			row.d_state =Char<2>::castString(data[6].c_str(), data[6].length());
-			row.d_zip =Char<9>::castString(data[7].c_str(), data[7].length());
-			row.d_tax =Numeric<4,4>::castString(data[8].c_str(), data[8].length());
-			row.d_ytd =Numeric<12,2>::castString(data[9].c_str(), data[9].length());
-			row.d_next_o_id =Integer::castString(data[10].c_str(), data[10].length());
-			districts.push_back(row);
+			d_id.push_back(Integer::castString(data[0].c_str(), data[0].length()));
+			d_w_id.push_back(Integer::castString(data[1].c_str(), data[1].length()));
+			d_name.push_back(Varchar<10>::castString(data[2].c_str(), data[2].length()));
+			d_street_1.push_back(Varchar<20>::castString(data[3].c_str(), data[3].length()));
+			d_street_2.push_back(Varchar<20>::castString(data[4].c_str(), data[4].length()));
+			d_city.push_back(Varchar<20>::castString(data[5].c_str(), data[5].length()));
+			d_state.push_back(Char<2>::castString(data[6].c_str(), data[6].length()));
+			d_zip.push_back(Char<9>::castString(data[7].c_str(), data[7].length()));
+			d_tax.push_back(Numeric<4,4>::castString(data[8].c_str(), data[8].length()));
+			d_ytd.push_back(Numeric<12,2>::castString(data[9].c_str(), data[9].length()));
+			d_next_o_id.push_back(Integer::castString(data[10].c_str(), data[10].length()));
 		}
 	}
-
-	void insert(Integer d_id,Integer d_w_id,Varchar<10> d_name,Varchar<20> d_street_1,Varchar<20> d_street_2,Varchar<20> d_city,Char<2> d_state,Char<9> d_zip,Numeric<4,4> d_tax,Numeric<12,2> d_ytd,Integer d_next_o_id){
-			Row row;
-			row.d_id = d_id;
-			row.d_w_id = d_w_id;
-			row.d_name = d_name;
-			row.d_street_1 = d_street_1;
-			row.d_street_2 = d_street_2;
-			row.d_city = d_city;
-			row.d_state = d_state;
-			row.d_zip = d_zip;
-			row.d_tax = d_tax;
-			row.d_ytd = d_ytd;
-			row.d_next_o_id = d_next_o_id;
-}
 };
 
 
 struct Warehouse : Table{
 	Warehouse() {name="warehouse";}
-	struct Row{
-		Integer w_id;
-		Varchar<10> w_name;
-		Varchar<20> w_street_1;
-		Varchar<20> w_street_2;
-		Varchar<20> w_city;
-		Char<2> w_state;
-		Char<9> w_zip;
-		Numeric<4,4> w_tax;
-		Numeric<12,2> w_ytd;
-	};
 
-	std::vector<Row> warehouses;
-	std::vector<unsigned> primaryKey;
-	Row operator [](const int& i) const {return warehouses[i];}
-	unsigned size(){return warehouses.size();}
+	std::vector<Integer> w_id;
+	std::vector<Varchar<10>> w_name;
+	std::vector<Varchar<20>> w_street_1;
+	std::vector<Varchar<20>> w_street_2;
+	std::vector<Varchar<20>> w_city;
+	std::vector<Char<2>> w_state;
+	std::vector<Char<9>> w_zip;
+	std::vector<Numeric<4,4>> w_tax;
+	std::vector<Numeric<12,2>> w_ytd;
 
-	std::vector<Row> getAll(){
-		return warehouses;
-	}
+	virtual int getColumn(void** result, std::string column , int size, int offset){
+		int remain = w_id.size() - offset - size;
+		if(column == "w_id"){
+			*result = &w_id[offset];
+		}else if(column == "w_tax"){
+			*result = &w_tax[offset];
+		}else if(column == "w_ytd"){
+			*result = &w_ytd[offset];
+		}
+		
+		return remain;
+	
+	}	
 
 	void init(){
-		primaryKey.push_back(0);
-
 		attributes.push_back(Attribute("w_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("w_name",Types::Tag::Varchar, 10, 0, 0));
 		attributes.push_back(Attribute("w_street_1",Types::Tag::Varchar, 20, 0, 0));
@@ -466,18 +450,15 @@ struct Warehouse : Table{
 
 		while(!f.eof() && f >> line){
 			std::vector<std::string> data = split(line, '|');
-			Row row;
-			row.w_id =Integer::castString(data[0].c_str(), data[0].length());
-			row.w_name =Varchar<10>::castString(data[1].c_str(), data[1].length());
-			row.w_street_1 =Varchar<20>::castString(data[2].c_str(), data[2].length());
-			row.w_street_2 =Varchar<20>::castString(data[3].c_str(), data[3].length());
-			row.w_city =Varchar<20>::castString(data[4].c_str(), data[4].length());
-			row.w_state =Char<2>::castString(data[5].c_str(), data[5].length());
-			row.w_zip =Char<9>::castString(data[6].c_str(), data[6].length());
-			row.w_tax =Numeric<4,4>::castString(data[7].c_str(), data[7].length());
-			row.w_ytd =Numeric<12,2>::castString(data[8].c_str(), data[8].length());
-			warehouses.push_back(row);
-
+			w_id.push_back(Integer::castString(data[0].c_str(), data[0].length()));
+			w_name.push_back(Varchar<10>::castString(data[1].c_str(), data[1].length()));
+			w_street_1.push_back(Varchar<20>::castString(data[2].c_str(), data[2].length()));
+			w_street_2.push_back(Varchar<20>::castString(data[3].c_str(), data[3].length()));
+			w_city.push_back(Varchar<20>::castString(data[4].c_str(), data[4].length()));
+			w_state.push_back(Char<2>::castString(data[5].c_str(), data[5].length()));
+			w_zip.push_back(Char<9>::castString(data[6].c_str(), data[6].length()));
+			w_tax.push_back(Numeric<4,4>::castString(data[7].c_str(), data[7].length()));
+			w_ytd.push_back(Numeric<12,2>::castString(data[8].c_str(), data[8].length()));
 		}
 	}
 };
@@ -486,23 +467,27 @@ struct Warehouse : Table{
 struct Item : Table{
 	Item() {name="item";}
 
-	struct Row{
-		Integer i_id;
-		Integer i_im_id;
-		Varchar<24> i_name;
-		Numeric<5,2> i_price;
-		Varchar<50> i_data;
-	};
+	std::vector<Integer> i_id;
+	std::vector<Integer> i_im_id;
+	std::vector<Varchar<24>> i_name;
+	std::vector<Numeric<5,2>> i_price;
+	std::vector<Varchar<50>> i_data;
 
-	std::vector<Row> items;
-
-	std::vector<unsigned> primaryKey;
-	Row operator [](const int& i) const {return items[i];}
-	unsigned size(){return items.size();}
+	virtual int getColumn(void** result, std::string column, int size, int offset){
+		int remain = i_id.size() - offset - size;
+		if(column == "i_id"){
+			*result = &i_id[offset];
+		}else if(column == "i_im_id"){
+			*result = &i_im_id[offset];
+		}else if(column == "i_price"){
+			*result = &i_price[offset];
+		}
+		
+		return remain;
+	
+	}
 
 	void init(){
-		primaryKey.push_back(0);
-
 		attributes.push_back(Attribute("i_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("i_im_id",Types::Tag::Integer, 0, 0, 0));
 		attributes.push_back(Attribute("i_name",Types::Tag::Varchar, 24, 0, 0));
@@ -515,14 +500,12 @@ struct Item : Table{
 
 		while(!f.eof() && f >> line){
 			std::vector<std::string> data = split(line, '|');
-			Row row;
-			row.i_id =Integer::castString(data[0].c_str(), data[0].length());
-			row.i_im_id =Integer::castString(data[1].c_str(), data[1].length());
-			row.i_name =Varchar<24>::castString(data[2].c_str(), data[2].length());
-			row.i_price =Numeric<5,2>::castString(data[3].c_str(), data[3].length());
-			row.i_data =Varchar<50>::castString(data[4].c_str(), data[4].length());
-			items.push_back(row);
 
+			i_id.push_back(Integer::castString(data[0].c_str(), data[0].length()));
+			i_im_id.push_back(Integer::castString(data[1].c_str(), data[1].length()));
+			i_name.push_back(Varchar<24>::castString(data[2].c_str(), data[2].length()));
+			i_price.push_back(Numeric<5,2>::castString(data[3].c_str(), data[3].length()));
+			i_data.push_back(Varchar<50>::castString(data[4].c_str(), data[4].length()));
 
 		}
 	}
