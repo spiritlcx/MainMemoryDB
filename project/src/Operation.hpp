@@ -6,7 +6,7 @@
 #include <string>
 
 #define LEN 32
-#define N 160000
+#define N 4096
 //relation name and relation object
 std::unordered_map<std::string, Schema::Relation> relations;
 //attribute name and attribute object
@@ -62,6 +62,11 @@ public:
 			t = t->left;
 		}
 	}
+
+	virtual ~Operation(){
+		delete left;
+		delete right;
+	}
 };
 
 class ScanOperation : public Operation{
@@ -85,7 +90,7 @@ public:
 			dataflow->select[i]=i;
 		}
 	
-		for(std::string column : columns){	
+		for(const std::string &column : columns){	
 			Schema::Relation::Attribute &attribute = attributes[column];
 			dataflow->colorder.push_back(column);
 			dataflow->colattribute.insert({column, attribute});
@@ -108,47 +113,35 @@ public:
 	}
 };
 
-int select_equal_Integer(int *output, Integer *input, int value, int size){
+int select_equal_Integer(int *select, Integer *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(input[output[i]] == value){
-			output[count++] = output[i];
+		if(input[select[i]] == value){
+			select[count++] = select[i];
 		}
-
-//	output[count] = output[i];
-//	count += (input[output[i]]==value);
 	}
 	return count;
 }
 
-int select_bigger_Integer(int *output, Integer *input, int value, int size){
+int select_bigger_Integer(int *select, Integer *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(input[output[i]] > value){
-			output[count] = output[i];
-			count++;
+		if(input[select[i]] > value){
+			select[count++] = select[i];
 		}
-//		output[count] = i;
-//		count += (input[i]==value);
 	}
 	return count;
 }
 
-int select_smaller_Integer(int *output, Integer *input, int value, int size){
+int select_smaller_Integer(int *select, Integer *input, int value, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(input[output[i]] < value){
-			output[count] = output[i];
-			count++;
+		if(input[select[i]] < value){
+			select[count++] = select[i];
 		}
-//		output[count] = i;
-//		count += (input[i]==value);
 	}
 	return count;
 }
-
-//=(c_id, 12)
-//=(c_first, 'chenxi')
 
 class SelectOperation : public Operation{
 public:
@@ -263,10 +256,15 @@ void spread_Numeric(int *select, Integer *value, int *groupId, Integer *inputval
 int lookupInitial(int *toCheck, int *pgroupId, int *first, int *hashValue, int size){
 	int count = 0;
 	for(int i = 0; i < size; i++){
-		if(first[hashValue[i]] != 0){
-			toCheck[count++] = i;
-			pgroupId[i] = first[hashValue[i]];
-		}
+//		if(first[hashValue[i]] != 0){
+//			toCheck[count++] = i;
+//			pgroupId[i] = first[hashValue[i]];
+//		}
+
+		toCheck[count] = i;
+		count += (first[hashValue[i]] != 0);
+		pgroupId[i] = first[hashValue[i]];
+
 	}
 	return count;
 }
@@ -559,21 +557,27 @@ public:
 	}
 };
 
+void print_Integer(int *select, Integer *value, int size){
+	for(int i = 0; i < size; i++){
+		std::cout << value[select[i]] << " ";
+	}
+}
+
 class PrintOperation : public Operation{
 public:
 	std::vector<std::string> columns;
 	virtual Dataflow *execute(){
-		int count = 0;
+//		int count = 0;
 		while(!end){
 			Dataflow *dataflow = left->execute();
 			print(dataflow, columns);
 			end = left->end;
-			count+=dataflow->size;
+//			count+=dataflow->size;
 
 			delete dataflow;
 		}
 
-		std::cout <<"Number of results: "<< count <<std::endl;
+//		std::cout <<"Number of results: "<< count <<std::endl;
 
 		return nullptr;
 	}
